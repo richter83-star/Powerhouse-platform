@@ -137,7 +137,8 @@ def setup_structured_logging(
         import os
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         
-        file_handler = logging.handlers.RotatingFileHandler(
+        from logging.handlers import RotatingFileHandler
+        file_handler = RotatingFileHandler(
             log_path,
             maxBytes=10 * 1024 * 1024,  # 10MB
             backupCount=5
