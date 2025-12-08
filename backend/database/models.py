@@ -56,6 +56,7 @@ class Tenant(Base):
     
     # Relationships
     projects = relationship("Project", back_populates="tenant", cascade="all, delete-orphan")
+    user_tenants = relationship("UserTenant", back_populates="tenant", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Tenant(id={self.id}, name={self.name})>"
@@ -241,3 +242,188 @@ class LearningEvent(Base):
     
     def __repr__(self):
         return f"<LearningEvent(id={self.id}, type={self.event_type})>"
+
+
+class User(Base):
+    """
+    User model for authentication and authorization.
+    
+    Stores user credentials, profile information, and account status.
+    """
+    __tablename__ = "users"
+    
+    id = Column(String(36), primary_key=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    full_name = Column(String(255))
+    company_name = Column(String(255))
+    job_title = Column(String(255))
+    
+    # Account status
+    is_active = Column(Integer, default=1, nullable=False)  # 1=active, 0=inactive
+    is_verified = Column(Integer, default=0, nullable=False)  # 1=verified, 0=unverified
+    is_locked = Column(Integer, default=0, nullable=False)  # 1=locked, 0=unlocked
+    locked_until = Column(DateTime, nullable=True)  # Lock expiration time
+    
+    # Failed login tracking
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    last_failed_login = Column(DateTime, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
+    email_verified_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
+    login_attempts = relationship("LoginAttempt", back_populates="user", cascade="all, delete-orphan")
+    user_tenants = relationship("UserTenant", back_populates="user", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<User(id={self.id}, email={self.email})>"
+
+
+class RefreshToken(Base):
+    """
+    Refresh token model for JWT token management.
+    
+    Stores refresh tokens with expiration and revocation status.
+    """
+    __tablename__ = "refresh_tokens"
+    
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    token = Column(String(500), unique=True, nullable=False, index=True)
+    tenant_id = Column(String(36), nullable=False, index=True)
+    
+    # Token status
+    is_revoked = Column(Integer, default=0, nullable=False)  # 1=revoked, 0=active
+    expires_at = Column(DateTime, nullable=False, index=True)
+    
+    # Metadata
+    ip_address = Column(String(45))  # IPv4 or IPv6
+    user_agent = Column(String(500))
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    user = relationship("User", back_populates="refresh_tokens")
+    
+    def __repr__(self):
+        return f"<RefreshToken(id={self.id}, user_id={self.user_id}, revoked={self.is_revoked})>"
+
+
+class LoginAttempt(Base):
+    """
+    Login attempt tracking for security monitoring.
+    
+    Records all login attempts (successful and failed) for audit purposes.
+    """
+    __tablename__ = "login_attempts"
+    
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)  # Nullable for failed attempts with unknown user
+    email = Column(String(255), nullable=False, index=True)
+    tenant_id = Column(String(36), nullable=True, index=True)
+    
+    # Attempt details
+    success = Column(Integer, default=0, nullable=False)  # 1=success, 0=failure
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    
+    # Failure reason (if failed)
+    failure_reason = Column(String(255), nullable=True)  # 'invalid_password', 'account_locked', etc.
+    
+    # Timestamp
+    attempted_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Relationships
+    user = relationship("User", back_populates="login_attempts")
+    
+    def __repr__(self):
+        return f"<LoginAttempt(id={self.id}, email={self.email}, success={self.success})>"
+
+
+class UserTenant(Base):
+    """
+    User-Tenant relationship model.
+    
+    Links users to tenants and stores their roles within each tenant.
+    """
+    __tablename__ = "user_tenants"
+    
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False, index=True)
+    
+    # Role storage (JSON array of role strings)
+    roles = Column(JSON, default=list, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="user_tenants")
+    tenant = relationship("Tenant")
+    
+    def __repr__(self):
+        return f"<UserTenant(user_id={self.user_id}, tenant_id={self.tenant_id})>"
+
+
+class EmailVerification(Base):
+    """
+    Email verification token model.
+    
+    Stores verification tokens for email confirmation.
+    """
+    __tablename__ = "email_verifications"
+    
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    token = Column(String(100), unique=True, nullable=False, index=True)
+    email = Column(String(255), nullable=False)
+    
+    # Status
+    is_used = Column(Integer, default=0, nullable=False)  # 1=used, 0=unused
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    user = relationship("User")
+    
+    def __repr__(self):
+        return f"<EmailVerification(id={self.id}, user_id={self.user_id}, used={self.is_used})>"
+
+
+class PasswordReset(Base):
+    """
+    Password reset token model.
+    
+    Stores password reset tokens with expiration.
+    """
+    __tablename__ = "password_resets"
+    
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    token = Column(String(100), unique=True, nullable=False, index=True)
+    
+    # Status
+    is_used = Column(Integer, default=0, nullable=False)  # 1=used, 0=unused
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    user = relationship("User")
+    
+    def __repr__(self):
+        return f"<PasswordReset(id={self.id}, user_id={self.user_id}, used={self.is_used})>"
