@@ -1,0 +1,7 @@
+task_id,project,task_name,priority,status,assigned_to,due_date
+T001,Website Redesign,Update homepage layout,high,in_progress,Design Team,2024-10-25
+T002,Website Redesign,Optimize mobile responsiveness,high,pending,Frontend Team,2024-10-30
+T003,API v2.0,Design new endpoints,critical,in_progress,Backend Team,2024-10-20
+T004,API v2.0,Write API documentation,medium,pending,Tech Writers,2024-11-05
+T005,Customer Portal,Implement user dashboard,high,in_progress,Full Stack Team,2024-10-28
+T006,Customer Portal,Add payment integration,critical,pending,Backend Team,2024-11-10

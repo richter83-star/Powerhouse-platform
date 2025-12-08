@@ -1,0 +1,1 @@
+class Agent:\n    def run(self, context):\n        return \"chain_of_thought processed: \" + context.get('task','')\n

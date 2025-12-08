@@ -1,0 +1,38 @@
+{
+  "task": "Market Research: AI in Healthcare",
+  "research_type": "comprehensive",
+  "scope": {
+    "geographic": [
+      "North America",
+      "Europe"
+    ],
+    "timeframe": "2020-2024",
+    "market_segments": [
+      "Diagnostic AI",
+      "Treatment Planning",
+      "Patient Monitoring",
+      "Drug Discovery"
+    ]
+  },
+  "research_questions": [
+    "What is the current market size and projected growth?",
+    "Who are the key players and their market positions?",
+    "What are the regulatory challenges?",
+    "What emerging technologies are being adopted?",
+    "What are the investment trends?"
+  ],
+  "deliverables": [
+    "Executive summary",
+    "Detailed market analysis",
+    "Competitive landscape",
+    "SWOT analysis",
+    "Recommendations"
+  ],
+  "data_sources": [
+    "Industry reports",
+    "Academic research",
+    "Company filings",
+    "News articles",
+    "Expert interviews"
+  ]
+}

@@ -1,0 +1,22 @@
+
+[Unit]
+Description=Powerhouse B2B Platform Backend API
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/powerhouse_b2b_platform/backend
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+ExecStart=/usr/bin/python3 /home/ubuntu/powerhouse_b2b_platform/backend/simple_api.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/tmp/simple_backend.log
+StandardError=append:/tmp/simple_backend.log
+
+# Health check and auto-restart
+HealthCheckInterval=30s
+
+[Install]
+WantedBy=multi-user.target

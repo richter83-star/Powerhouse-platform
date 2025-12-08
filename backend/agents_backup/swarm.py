@@ -1,0 +1,1 @@
+class Agent:\n    def run(self, context):\n        return \"swarm processed: \" + context.get('task','')\n

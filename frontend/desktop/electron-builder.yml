@@ -1,0 +1,20 @@
+appId: com.powerhouse.enterprise
+productName: Powerhouse Enterprise
+
+directories:
+  output: dist
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+  artifactName: "${productName}-Setup-${version}.${ext}"
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+# Optional: make it explicit (default is false)
+forceCodeSigning: false

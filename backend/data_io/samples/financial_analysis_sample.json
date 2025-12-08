@@ -1,0 +1,22 @@
+{
+  "task": "Financial Performance Analysis",
+  "company": "TechCorp Solutions",
+  "period": "Q3 2024",
+  "metrics": {
+    "revenue": 2500000,
+    "expenses": 1800000,
+    "profit_margin": 28,
+    "growth_rate": 15.5
+  },
+  "requirements": [
+    "Identify trends and patterns",
+    "Compare with previous quarters",
+    "Provide strategic recommendations",
+    "Forecast next quarter performance"
+  ],
+  "context": {
+    "industry": "Software/SaaS",
+    "employees": 150,
+    "market": "North America"
+  }
+}

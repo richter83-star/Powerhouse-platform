@@ -1,0 +1,1 @@
+class Agent:\n    def run(self, context):\n        return \"memory_agent processed: \" + context.get('task','')\n

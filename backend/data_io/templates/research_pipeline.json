@@ -1,0 +1,46 @@
+
+{
+  "name": "Research Pipeline Template",
+  "description": "Comprehensive research workflow with planning, execution, and synthesis",
+  "category": "research",
+  "version": "1.0",
+  "template": {
+    "task_type": "pipeline",
+    "stages": [
+      {
+        "name": "planning",
+        "agent": "planning",
+        "input": {
+          "objective": "Research objective",
+          "scope": "Research scope"
+        }
+      },
+      {
+        "name": "information_gathering",
+        "agent": "react",
+        "input": {
+          "sources": [],
+          "keywords": []
+        }
+      },
+      {
+        "name": "analysis",
+        "agent": "chain_of_thought",
+        "input": {
+          "data": "{{information_gathering.output}}"
+        }
+      },
+      {
+        "name": "synthesis",
+        "agent": "reflection",
+        "input": {
+          "findings": "{{analysis.output}}"
+        }
+      }
+    ],
+    "config": {
+      "checkpoint_enabled": true,
+      "output_format": "comprehensive_report"
+    }
+  }
+}

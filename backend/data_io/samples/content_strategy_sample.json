@@ -1,0 +1,45 @@
+{
+  "task": "Q4 Content Strategy Planning",
+  "brand": "TechStartup Inc.",
+  "objectives": [
+    "Increase organic traffic by 30%",
+    "Generate 500 qualified leads",
+    "Improve brand awareness",
+    "Establish thought leadership"
+  ],
+  "target_audience": {
+    "primary": {
+      "role": "IT Decision Makers",
+      "company_size": "50-500 employees",
+      "industry": "Technology, Healthcare, Finance"
+    },
+    "secondary": {
+      "role": "Technical Practitioners",
+      "interests": [
+        "DevOps",
+        "Cloud",
+        "Security"
+      ]
+    }
+  },
+  "content_types": [
+    "Blog posts (2-3 per week)",
+    "Whitepapers (1 per month)",
+    "Case studies (2 per quarter)",
+    "Webinars (1 per month)",
+    "Social media posts (daily)"
+  ],
+  "topics": [
+    "AI and Machine Learning",
+    "Cloud Infrastructure",
+    "Cybersecurity Best Practices",
+    "Digital Transformation",
+    "Automation and Efficiency"
+  ],
+  "requirements": [
+    "Create content calendar",
+    "Identify keyword opportunities",
+    "Define KPIs and tracking",
+    "Allocate resources and budget"
+  ]
+}

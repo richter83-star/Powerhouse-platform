@@ -1,0 +1,7 @@
+
+id,task,priority,category
+1,"Analyze customer sentiment from Q3 reviews",high,analytics
+2,"Generate product roadmap for next quarter",medium,planning
+3,"Evaluate competitor pricing strategies",high,research
+4,"Create content calendar for social media",low,marketing
+5,"Optimize database query performance",medium,technical

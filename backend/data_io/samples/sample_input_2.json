@@ -1,0 +1,17 @@
+
+{
+  "task": "Market research for new product launch",
+  "product": {
+    "name": "AI-powered customer service assistant",
+    "category": "B2B SaaS",
+    "target_market": "Small to medium enterprises (10-500 employees)",
+    "pricing_model": "subscription-based"
+  },
+  "research_areas": [
+    "Market size and growth potential",
+    "Competitor analysis",
+    "Customer pain points",
+    "Pricing strategy",
+    "Go-to-market recommendations"
+  ]
+}

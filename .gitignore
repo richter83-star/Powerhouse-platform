@@ -1,0 +1,227 @@
+# ============================================================================
+# Powerhouse Multi-Agent Platform - Git Ignore
+# ============================================================================
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+*.env
+.envrc
+secrets/
+*.pem
+*.key
+*.cert
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+ENV/
+env/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.pytype/
+cython_debug/
+
+# Node.js / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+.npm
+.yarn/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Next.js
+.next/
+out/
+build/
+.cache/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+
+# Electron
+dist/
+*.exe
+*.exe.blockmap
+*.dmg
+*.pkg
+*.deb
+*.rpm
+*.AppImage
+win-unpacked/
+mac/
+linux-unpacked/
+*.asar
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Logs
+*.log
+logs/
+*.log.*
+backend.log
+install_log.txt
+*.pid
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+powerhouse.db
+*.db-journal
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Build Artifacts
+*.zip
+*.tar.gz
+*.rar
+powerhouse_multi_agent.zip
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.hypothesis/
+test-results/
+coverage/
+
+# Documentation Build
+docs/_build/
+docs/.doctrees/
+site/
+
+# Runtime & Scripts
+runtime/
+*.pid
+*.lock
+
+# Prisma
+prisma/migrations/.migrate/
+
+# TypeScript
+*.tsbuildinfo
+
+# Python Virtual Environment (explicit)
+backend/venv/
+backend/.venv/
+
+# Frontend Build Outputs
+frontend/app/.next/
+frontend/app/out/
+frontend/app/.build/
+frontend/desktop/dist/
+frontend/desktop/runtime/
+
+# Electron App Build
+electron-app/dist/
+electron-app/build/
+
+# Local Development
+.local/
+.localhost/
+*.local
+
+# Backup Files
+*.bak
+*.backup
+*~
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IDE - JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Misc
+.cursor/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+

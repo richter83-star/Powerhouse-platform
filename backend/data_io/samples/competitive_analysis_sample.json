@@ -1,0 +1,51 @@
+{
+  "task": "Competitive Landscape Analysis",
+  "industry": "Cloud Storage",
+  "competitors": [
+    {
+      "name": "Competitor A",
+      "market_share": 35,
+      "pricing_model": "Freemium",
+      "key_features": [
+        "10GB free",
+        "File sync",
+        "Mobile apps"
+      ],
+      "strengths": [
+        "Brand recognition",
+        "Large user base"
+      ],
+      "weaknesses": [
+        "Limited free tier",
+        "Slow sync"
+      ]
+    },
+    {
+      "name": "Competitor B",
+      "market_share": 25,
+      "pricing_model": "Subscription",
+      "key_features": [
+        "E2E encryption",
+        "Team collaboration"
+      ],
+      "strengths": [
+        "Security focus",
+        "Enterprise features"
+      ],
+      "weaknesses": [
+        "Higher price",
+        "Complex UI"
+      ]
+    }
+  ],
+  "our_position": {
+    "market_share": 15,
+    "target_segment": "SMB and Enterprise"
+  },
+  "analysis_objectives": [
+    "Identify market gaps",
+    "Analyze pricing strategies",
+    "Determine differentiation opportunities",
+    "Create competitive positioning map"
+  ]
+}

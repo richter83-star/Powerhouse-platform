@@ -1,0 +1,40 @@
+
+{
+  "common": {
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "export": "Exportar",
+    "import": "Importar",
+    "refresh": "Actualizar",
+    "settings": "Configuración",
+    "logout": "Cerrar sesión",
+    "login": "Iniciar sesión"
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "agents": "Agentes",
+    "workflows": "Flujos de trabajo",
+    "dataManager": "Gestor de datos",
+    "aiQuality": "Calidad de IA",
+    "integrations": "Integraciones",
+    "architecture": "Arquitectura",
+    "observability": "Observabilidad",
+    "compliance": "Cumplimiento"
+  },
+  "dashboard": {
+    "title": "Panel empresarial",
+    "subtitle": "Monitoreo y análisis en tiempo real",
+    "systemHealth": "Salud del sistema",
+    "activeAgents": "Agentes activos",
+    "tasksThroughput": "Rendimiento de tareas",
+    "modelAccuracy": "Precisión del modelo"
+  }
+}

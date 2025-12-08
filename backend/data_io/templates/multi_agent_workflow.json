@@ -1,0 +1,46 @@
+
+{
+  "name": "Multi-Agent Workflow Template",
+  "description": "Coordinate multiple agents for complex tasks",
+  "category": "advanced",
+  "version": "1.0",
+  "template": {
+    "task_type": "multi_agent",
+    "workflow": {
+      "name": "My Workflow",
+      "agents": [
+        {
+          "id": "agent1",
+          "type": "planning",
+          "input": "Initial task"
+        },
+        {
+          "id": "agent2",
+          "type": "react",
+          "depends_on": ["agent1"],
+          "input": "Process based on plan"
+        },
+        {
+          "id": "agent3",
+          "type": "evaluator",
+          "depends_on": ["agent2"],
+          "input": "Evaluate results"
+        }
+      ]
+    },
+    "config": {
+      "parallel_execution": false,
+      "timeout": 300
+    }
+  },
+  "example": {
+    "workflow": {
+      "name": "Research & Analysis",
+      "agents": [
+        {"id": "planner", "type": "planning", "input": "Research competitive landscape"},
+        {"id": "researcher", "type": "react", "depends_on": ["planner"]},
+        {"id": "analyzer", "type": "evaluator", "depends_on": ["researcher"]}
+      ]
+    }
+  }
+}

@@ -1,0 +1,7 @@
+version: "3.9"
+services:
+  backend:
+    build: .
+    container_name: powerhouse_backend
+    ports:
+      - "8000:8000"

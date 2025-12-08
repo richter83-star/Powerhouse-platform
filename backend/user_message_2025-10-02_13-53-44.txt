@@ -1,0 +1,482 @@
+# create_project.py
+import os, zipfile
+from pathlib import Path
+
+PROJECT_NAME = "all-agentic-architectures-production"
+base = Path(PROJECT_NAME)
+(base / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
+
+files = {
+ "app.py": """import importlib
+import traceback
+import streamlit as st
+
+st.set_page_config(page_title="All Agentic Architectures", page_icon="🤖", layout="wide")
+
+ARCHITECTURE_CATALOG = {
+    "Reasoning": {
+        "Reflection": "reflection",
+        "ReAct": "react",
+        "Planning": "planning",
+        "Chain of Thought": "chain_of_thought",
+        "Tree of Thought": "tree_of_thought",
+    },
+    "Coordination": {
+        "Multi-Agent": "multi_agent",
+        "Hierarchical Agents": "hierarchical_agents",
+        "Debate Agents": "debate",
+        "Generative Agents": "generative_agents",
+    },
+    "Scaling & Tools": {
+        "Auto Loop Agent": "auto_loop_agent",
+        "Swarm Agents": "swarm",
+        "Curriculum Agent": "curriculum_agent",
+        "Toolformer": "toolformer",
+    },
+    "Continual Learning & QA": {
+        "Voyager": "voyager",
+        "Memory-Augmented Agent": "memory_agent",
+        "Evaluator / Critic": "evaluator",
+    },
+}
+
+HIERARCHY_PATHS = [
+    "Chain of Thought → Tree of Thought → Auto Loop Agent",
+    "Auto Loop Agent → Hierarchical Agents → Debate → Generative Agents",
+    "Generative Agents → Swarm → Curriculum Agent → Toolformer",
+    "Toolformer → Voyager → Memory-Augmented Agent → Evaluator / Critic",
+]
+
+def import_module_safely(module_name: str):
+    try:
+        return importlib.import_module(module_name)
+    except Exception as e:
+        st.error(f"Failed to import module '{module_name}'. See details below.")
+        with st.expander("Import error details"):
+            st.code("".join(traceback.format_exception(e)))
+        return None
+
+def run_architecture(module_name: str, input_text: str):
+    mod = import_module_safely(module_name)
+    if not mod:
+        return
+    if not hasattr(mod, "run"):
+        st.error(f"Module '{module_name}' does not define a run(input_text: str) function.")
+        return
+    try:
+        result = mod.run(input_text)
+        if result is not None:
+            st.success("Result")
+            st.write(result if isinstance(result, str) else str(result))
+    except Exception as e:
+        st.error("The architecture raised an error during execution.")
+        with st.expander("Execution error details"):
+            st.code("".join(traceback.format_exception(e)))
+
+def sidebar():
+    st.sidebar.title("All Agentic Architectures")
+    st.sidebar.caption("Explore 16 architectures organized by function and hierarchy.")
+    category = st.sidebar.selectbox("Category", list(ARCHITECTURE_CATALOG.keys()))
+    arch_options = list(ARCHITECTURE_CATALOG[category].keys())
+    arch_choice = st.sidebar.selectbox("Architecture", arch_options)
+    module_name = ARCHITECTURE_CATALOG[category][arch_choice]
+    st.sidebar.markdown("#### Hierarchy Paths")
+    for path in HIERARCHY_PATHS:
+        st.sidebar.caption(f"• {path}")
+    st.sidebar.markdown("---")
+    st.sidebar.caption(f"Module: {module_name}.py")
+    return category, arch_choice, module_name
+
+def main():
+    st.title("🤖 All Agentic Architectures Suite")
+    st.caption("A unified Playground for classic and modern agentic patterns.")
+    category, arch_choice, module_name = sidebar()
+    st.subheader(f"{category} › {arch_choice}")
+    default_prompt = "Plan a product launch for a developer-focused SaaS in 90 days."
+    input_text = st.text_area("Input", value=default_prompt, height=140, help="Describe the task/problem for the agent.")
+    col_run, col_info = st.columns([1, 3])
+    with col_info:
+        st.markdown("##### Notes")
+        st.write("• Each architecture exposes run(input_text: str). Some modules call lower-level modules to demonstrate hierarchy.")
+        st.write("• Output below may include logs printed by modules (e.g., via rich).")
+    if col_run.button("Run Architecture", type="primary"):
+        run_architecture(module_name, input_text)
+    st.markdown("### Architecture Overview")
+    for cat, items in ARCHITECTURE_CATALOG.items():
+        with st.expander(cat, expanded=False):
+            for label, mod in items.items():
+                st.write(f"- {label}  —  `{mod}.py`")
+
+if __name__ == "__main__":
+    main()
+""",
+ "reflection.py": """from rich.console import Console
+console = Console()
+def run(input_text: str) -> str:
+    console.print(f"[cyan]Reflection on:[/cyan] {input_text}")
+    iterations = [
+        f"Draft 1: Initial response to '{input_text}'",
+        "Critique: Lacks depth and specificity",
+        "Draft 2: Enhanced with more detail",
+        "Critique: Better, but needs concrete examples",
+        "Final: Comprehensive response with examples"
+    ]
+    for i, step in enumerate(iterations, 1):
+        console.print(f"  {i}. {step}")
+    result = f"Reflection complete: Refined answer for '{input_text}' through 3 iterations"
+    console.print(f"[bold green]{result}[/bold green]")
+    return result
+""",
+ "react.py": """from rich.console import Console
+console = Console()
+def run(input_text: str) -> str:
+    console.print(f"[yellow]ReAct processing:[/yellow] {input_text}")
+    steps = [
+        ("Thought", f"I need to break down '{input_text}' into actionable steps"),
+        ("Action", "Research best practices"),
+        ("Observation", "Found 5 relevant strategies"),
+        ("Thought", "Now I should prioritize these strategies"),
+        ("Action", "Rank by impact and feasibility"),
+        ("Observation", "Top 3 strategies identified"),
+        ("Thought", "Ready to formulate final recommendation"),
+    ]
+    for step_type, content in steps:
+        console.print(f"  [{step_type}] {content}")
+    result = f"ReAct complete: Actionable plan for '{input_text}'"
+    console.print(f"[bold green]{result}[/bold green]")
+    return result
+""",
+ "planning.py": """from rich.console import Console
+console = Console()
+def run(input_text: str) -> str:
+    console.print(f"[magenta]Planning for:[/magenta] {input_text}")
+    plan = {
+        "Goal": input_text,
+        "Subgoals": [
+            "1. Define success metrics",
+            "2. Identify resources needed",
+            "3. Create timeline",
+            "4. Assign responsibilities"
+        ],
+        "Timeline": "90 days",
+        "Dependencies": ["Resource allocation → Timeline → Execution"]
+    }
+    for key, value in plan.items():
+        if isinstance(value, list):
+            console.print(f"  {key}:")
+            for item in value:
+                console.print(f"    - {item}")
+        else:
+            console.print(f"  {key}: {value}")
+    result = f"Planning complete: Structured plan for '{input_text}'"
+    console.print(f"[bold green]{result}[/bold green]")
+    return result
+""",
+ "chain_of_thought.py": """from rich.console import Console
+console = Console()
+def run(input_text: str) -> str:
+    console.print("[blue]Chain of Thought reasoning steps:[/blue]")
+    steps = [
+        f"1. Parse input: {input_text}",
+        "2. Identify subcomponents of the problem",
+        "3. Work through each subcomponent logically",
+        "4. Aggregate partial results",
+    ]
+    for step in steps:
+        console.print(f" - {step}")
+    output = f"Final reasoning output for: {input_text}"
+    console.print(f"[bold green]{output}[/bold green]")
+    return output
+""",
+ "tree_of_thought.py": """from rich.console import Console
+import chain_of_thought
+console = Console()
+def run(input_text: str) -> str:
+    console.print("[green]Tree-of-Thought reasoning initiated...[/green]")
+    cot_result = chain_of_thought.run(input_text)
+    console.print(f"[magenta]Base CoT Result:[/magenta] {cot_result}")
+    tree = {
+        "Root": ["Option A: Optimistic path", "Option B: Cautious path"],
+        "Option A": ["Step A1 -> Positive outcome", "Step A2 -> Extreme optimism"],
+        "Option B": ["Step B1 -> Safe outcome", "Step B2 -> Worst case"]
+    }
+    for node, children in tree.items():
+        console.print(f"{node} -> {children}")
+    final_choice = "Option B1 -> Safe outcome"
+    console.print(f"[bold green]Chosen path: {final_choice}[/bold green]")
+    return f"Tree-of-Thought outcome for '{input_text}': {final_choice}"
+""",
+ "multi_agent.py": """from rich.console import Console
+console = Console()
+def run(input_text: str) -> str:
+    console.print(f"[blue]Multi-Agent collaboration on:[/blue] {input_text}")
+    agents = {
+        "Researcher": f"Gathering data on '{input_text}'",
+        "Analyst": f"Analyzing feasibility of '{input_text}'",
+        "Strategist": f"Developing strategy for '{input_text}'",
+        "Executor": f"Planning implementation of '{input_text}'"
+    }
+    for agent, task in agents.items():
+        console.print(f"  [{agent}] {task}")
+    result = f"Multi-Agent synthesis: Collaborative solution for '{input_text}'"
+    console.print(f"[bold green]{result}[/bold green]")
+    return result
+""",
+ "hierarchical_agents.py": """from rich.console import Console
+import auto_loop_agent
+console = Console()
+def run(input_text: str) -> str:
+    console.print(f"[cyan]Hierarchical Manager assigning task:[/cyan] {input_text}")
+    subgoals = [f"{input_text} - Part A", f"{input_text} - Part B"]
+    console.print(f"[yellow]Manager produced subgoals:[/yellow] {subgoals}")
+    workers = []
+    for goal in subgoals:
+        result = auto_loop_agent.run(goal)
+        workers.append(result)
+    summary = f"Manager synthesis of subgoals: {workers}"
+    console.print(f"[bold green]{summary}[/bold green]")
+    return summary
+""",
+ "debate.py": """from rich.console import Console
+import hierarchical_agents
+console = Console()
+def run(input_text: str) -> str:
+    console.print(f"[magenta]Starting debate on: {input_text}[/magenta]")
+    base = hierarchical_agents.run(input_text)
+    pro = f"Pro: {input_text} is advantageous because it scales innovation."
+    con = f"Con: {input_text} may fail due to safety & complexity."
+    summary = "Mediator: Both views valid → Final balance required."
+    debate_result = f"Debate result: {summary} based on {base}"
+    console.print(f"[bold green]{debate_result}[/bold green]")
+    return debate_result
+""",
+ "generative_agents.py": """from rich.console import Console
+import debate
+console = Console()
+def run(input_text: str) -> str:
+    console.print(f"[blue]Simulating agents with personas discussing: {input_text}[/blue]")
+    context = debate.run(input_text)
+    personas = {
+        "Researcher": f"As a researcher, I rely on evidence → {context}",
+        "Engineer": f"As an engineer, I want practical solutions → {context}",
+        "CEO": f"As a CEO, I care about strategy & costs → {context}"
+    }
+    for role, speech in personas.items():
+        console.print(f"{role}: {speech}")
+    return f"Generative Agent Personas produced insights on '{input_text}'"
+""",
+ "auto_loop_agent.py": """import random
+from rich.console import Console
+import tree_of_thought
+console = Console()
+def run(input_text: str) -> str:
+    console.print(f"[yellow]AutoAgent loop started for: {input_text}[/yellow]")
+    tree_result = tree_of_thought.run(input_text)
+    console.print(f"[magenta]Initial ToT outcome:[/magenta] {tree_result}")
+    actions = ["Refine tree", "Test alternative path", "Checkpoint progress", "Evaluate next loop"]
+    history = []
+    for i in range(3):
+        action = random.choice(actions)
+        console.print(f"Loop {i+1}: {action}")
+        history.append(action)
+    final = f"AutoAgent converged after loops with: '{tree_result}' and steps {history}"
+    console.print(f"[bold green]{final}[/bold green]")
+    return final
+""",
+ "swarm.py": """import random
+from rich.console import Console
+import generative_agents
+console = Console()
+def run(input_text: str) -> str:
+    console.print("[green]Swarm intelligence initiated...[/green]")
+    base = generative_agents.run(input_text)
+    votes = [random.choice(["YES", "NO"]) for _ in range(10)]
+    decision = "YES" if votes.count("YES") > votes.count("NO") else "NO"
+    console.print(f"Votes: {votes}")
+    console.print(f"[bold green]Swarm decision: {decision}[/bold green] based on {base}")
+    return f"Swarm consensus on '{input_text}': {decision}"
+""",
+ "curriculum_agent.py": """from rich.console import Console
+import swarm
+console = Console()
+def run(input_text: str) -> str:
+    console.print(f"[cyan]Curriculum-driven agent learning: {input_text}[/cyan]")
+    stages = ["Basic skill", "Intermediate practice", "Advanced integration"]
+    history = []
+    for stage in stages:
+        result = swarm.run(f"{input_text} at {stage}")
+        history.append((stage, result))
+    summary = f"Curriculum agent mastered '{input_text}' through stages {stages}"
+    console.print(f"[bold green]{summary}[/bold green]")
+    return summary
+""",
+ "toolformer.py": """import random
+from rich.console import Console
+import curriculum_agent
+console = Console()
+def run(input_text: str) -> str:
+    console.print(f"[yellow]Toolformer analyzing: {input_text}[/yellow]")
+    base = curriculum_agent.run(input_text)
+    tools = ["Calculator", "Search", "Translator"]
+    chosen_tool = random.choice(tools)
+    console.print(f"Chosen tool: {chosen_tool}")
+    result = f"Applied {chosen_tool} to enhance: {base}"
+    return f"Toolformer output using {chosen_tool} on '{input_text}'"
+""",
+ "voyager.py": """from rich.console import Console
+import toolformer
+console = Console()
+def run(input_text: str) -> str:
+    console.print(f"[cyan]Voyager exploration for: {input_text}[/cyan]")
+    base = toolformer.run(input_text)
+    explorations = [
+        f"{input_text} explored in new domain",
+        f"{input_text} tested across scenarios",
+        f"{input_text} recorded into skill library"
+    ]
+    for x in explorations:
+        console.print(f" - {x}")
+    return f"Voyager continual agent archived '{input_text}'"
+""",
+ "memory_agent.py": """from rich.console import Console
+import voyager
+console = Console()
+def run(input_text: str) -> str:
+    console.print("[green]Accessing memory system...[/green]")
+    experience = voyager.run(input_text)
+    memory_bank = {input_text: experience}
+    console.print(f"Memory stored: {memory_bank}")
+    recall = memory_bank.get(input_text)
+    return f"Memory Agent recalling past results: {recall}"
+""",
+ "evaluator.py": """from rich.console import Console
+import memory_agent
+console = Console()
+def run(input_text: str) -> str:
+    console.print(f"[red]Evaluator reviewing: {input_text}[/red]")
+    candidate = memory_agent.run(input_text)
+    score = len(candidate) % 10
+    console.print(f"Evaluation score: {score}/10")
+    return f"Evaluator final judgment on '{input_text}': {score}/10"
+""",
+ "test_smoke.py": """import importlib, inspect, io, random, sys, time
+from contextlib import redirect_stdout
+ALL_MODULES = [
+    "reflection", "react", "planning", "chain_of_thought", "tree_of_thought",
+    "multi_agent", "hierarchical_agents", "debate", "generative_agents",
+    "auto_loop_agent", "swarm", "curriculum_agent", "toolformer",
+    "voyager", "memory_agent", "evaluator",
+]
+DEFAULT_INPUT = "Plan a product launch for a developer-focused SaaS in 90 days."
+def parse_args(argv):
+    only = None; stop_on_fail = False; verbose = False; it = iter(argv)
+    for arg in it:
+        if arg == "--only":
+            try: only = next(it)
+            except StopIteration:
+                print("ERROR: --only requires a comma-separated list"); sys.exit(1)
+        elif arg == "--stop-on-fail": stop_on_fail = True
+        elif arg in ("-v","--verbose"): verbose = True
+    if only: return [m.strip() for m in only.split(",") if m.strip()], stop_on_fail, verbose
+    return ALL_MODULES, stop_on_fail, verbose
+def truncate(text, max_len=600):
+    if text is None: return ""
+    s = str(text); return s if len(s) <= max_len else s[:max_len] + " ... [truncated]"
+def smoke_test_module(module_name: str, input_text: str, verbose=False):
+    import_ok=has_run=sig_ok=exec_ok=False; err=None; out=""; ret=None; start=time.time()
+    try: mod = importlib.import_module(module_name); import_ok=True
+    except Exception as e: err=f"ImportError: {e}"; return dict(module=module_name,import_ok=import_ok,has_run=has_run,sig_ok=sig_ok,exec_ok=exec_ok,error=err,stdout=out,return_value=ret,elapsed_ms=None)
+    run_fn = getattr(mod,"run",None)
+    if run_fn is None or not callable(run_fn):
+        err="Missing callable run(input_text: str)"; return dict(module=module_name,import_ok=import_ok,has_run=has_run,sig_ok=sig_ok,exec_ok=exec_ok,error=err,stdout=out,return_value=ret,elapsed_ms=None)
+    has_run=True
+    try:
+        sig = inspect.signature(run_fn); params = list(sig.parameters.values())
+        if len(params)==1: sig_ok=True
+        else: err=f"Invalid signature: expected 1 parameter, got {len(params)}"; return dict(module=module_name,import_ok=import_ok,has_run=has_run,sig_ok=sig_ok,exec_ok=exec_ok,error=err,stdout=out,return_value=ret,elapsed_ms=None)
+    except Exception as e: err=f"SignatureError: {e}"; return dict(module=module_name,import_ok=import_ok,has_run=has_run,sig_ok=sig_ok,exec_ok=exec_ok,error=err,stdout=out,return_value=ret,elapsed_ms=None)
+    random.seed(42); buf = io.StringIO()
+    try:
+        with redirect_stdout(buf): ret = run_fn(input_text); exec_ok=True
+    except Exception as e: err=f"ExecutionError: {e}"
+    out = buf.getvalue(); elapsed=int((time.time()-start)*1000)
+    if verbose:
+        print(f\"--- VERBOSE [{module_name}] ---\\nSTDOUT:\\n{truncate(out,2000)}\\nRETURN VALUE:\\n{truncate(ret,1000)}\\nElapsed: {elapsed} ms\\n-----------------------------\")
+    return dict(module=module_name,import_ok=import_ok,has_run=has_run,sig_ok=sig_ok,exec_ok=exec_ok,error=err,stdout=out,return_value=ret,elapsed_ms=elapsed)
+def main():
+    modules, stop_on_fail, verbose = parse_args(sys.argv[1:])
+    print(f"Running smoke tests on {len(modules)} module(s)...\\n")
+    passes=fails=0; details=[]
+    for m in modules:
+        print(f"• Testing {m} ... ", end="", flush=True)
+        r = smoke_test_module(m, DEFAULT_INPUT, verbose=verbose)
+        ok = r["import_ok"] and r["has_run"] and r["sig_ok"] and r["exec_ok"] and (r["error"] is None)
+        if ok: passes += 1; print(f"OK ({r['elapsed_ms']} ms)")
+        else: fails += 1; print("FAIL")
+        details.append(r)
+        if stop_on_fail and not ok: break
+    print("\\nSummary\\n-------"); print(f"Passed: {passes}"); print(f"Failed: {fails}")
+    if fails>0:
+        print("\\nFailure Details\\n---------------")
+        for r in details:
+            ok = r["import_ok"] and r["has_run"] and r["sig_ok"] and r["exec_ok"] and (r["error"] is None)
+            if not ok:
+                print(f"[{r['module']}]"); print(f"  import_ok: {r['import_ok']}  has_run: {r['has_run']}  sig_ok: {r['sig_ok']}  exec_ok: {r['exec_ok']}")
+                if r["error"]: print(f"  error: {r['error']}"); print()
+        sys.exit(1)
+    else: sys.exit(0)
+if __name__ == "__main__": main()
+""",
+ "requirements.txt": "streamlit>=1.28.0\nrich>=13.5.0\nopenai>=1.0.0\npython-dotenv>=1.0.0\nrequests>=2.31.0\n",
+ ".env.example": "# OpenAI API Key (required for some architectures)\nOPENAI_API_KEY=your_openai_api_key_here\n\n# Optional: Other API keys\nANTHROPIC_API_KEY=\nCOHERE_API_KEY=\n",
+ ".gitignore": "# Python\n__pycache__/\n*.py[cod]\n*$py.class\n*.so\n.Python\nenv/\nvenv/\nENV/\nbuild/\ndevelop-eggs/\ndist/\ndownloads/\neggs/\n.eggs/\nlib/\nlib64/\nparts/\nsdist/\nvar/\nwheels/\n*.egg-info/\n.installed.cfg\n*.egg\n\n# Environment\n.env\n.venv\n\n# IDE\n.vscode/\n.idea/\n*.swp\n*.swo\n*~\n\n# OS\n.DS_Store\nThumbs.db\n\n# Streamlit\n.streamlit/secrets.toml\n\n# Logs\n*.log\n",
+ "Makefile": ".PHONY: help install smoke test run clean lint format\n\nhelp:\n\t@echo \"Available targets:\"\n\t@echo \"  make install    - Install dependencies\"\n\t@echo \"  make smoke      - Run smoke tests\"\n\t@echo \"  make test       - Run full test suite\"\n\t@echo \"  make run        - Launch Streamlit app\"\n\t@echo \"  make lint       - Run linting checks\"\n\t@echo \"  make format     - Auto-format code\"\n\t@echo \"  make clean      - Remove cache and temp files\"\n\ninstall:\n\tpip install -r requirements.txt\n\nsmoke:\n\tpython test_smoke.py\n\ntest:\n\tpython test_smoke.py -v\n\nrun:\n\tstreamlit run app.py\n\nlint:\n\tflake8 . --count --select=E9,F63,F7,F82 --show-source --statistics\n\tflake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics\n\nformat:\n\tblack *.py\n\tisort *.py\n\nclean:\n\tfind . -type d -name \"__pycache__\" -exec rm -rf {} +\n\tfind . -type f -name \"*.pyc\" -delete\n\tfind . -type f -name \"*.pyo\" -delete\n\tfind . -type d -name \".pytest_cache\" -exec rm -rf {} +\n\tfind . -type d -name \"*.egg-info\" -exec rm -rf {} +\n",
+ "LICENSE": "MIT License\n\nCopyright (c) 2025 All Agentic Architectures\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
+ "README.md": "# 🤖 All Agentic Architectures Suite\n\nA unified, production-ready platform showcasing **16 modern agentic AI architectures** organized by function and hierarchy.\n\n## Quick Start\n\npip install -r requirements.txt\n\ncp .env.example .env\n\nmake run\n\nSee test_smoke.py and Makefile for testing/devops.\n",
+ ".github/workflows/smoke-test.yml": """name: Smoke Tests
+on:
+  push: { branches: [ main, develop ] }
+  pull_request: { branches: [ main, develop ] }
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: { python-version: ['3.9','3.10','3.11'] }
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with: { python-version: ${{ matrix.python-version }} }
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Run smoke tests
+      run: |
+        python test_smoke.py -v
+    - name: Upload test results on failure
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: smoke-test-logs
+        path: |
+          *.log
+          test_results/
+"""
+}
+
+# Write files
+for path, content in files.items():
+    dest = base / path
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(content)
+
+# Make a local zip
+zip_path = f"{PROJECT_NAME}-v1.0.zip"
+with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+    for root, _, fs in os.walk(base):
+        for f in fs:
+            full = Path(root) / f
+            z.write(full, arcname=str(full.relative_to(base.parent)))
+
+print(f"Project created at: {base.resolve()}")
+print(f"ZIP created: {Path(zip_path).resolve()}")

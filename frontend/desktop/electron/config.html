@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Powerhouse Enterprise - Config</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+      .card { max-width: 900px; padding: 20px; border: 1px solid #ddd; border-radius: 12px; }
+      .title { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
+      .sub { color: #444; margin: 0 0 16px; line-height: 1.4; }
+      code { background: #f5f5f5; padding: 2px 6px; border-radius: 6px; }
+      .msg { white-space: pre-wrap; background: #fff7e6; border: 1px solid #ffe0a3; padding: 12px; border-radius: 10px; margin: 12px 0; }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+      button { padding: 10px 14px; border-radius: 10px; border: 1px solid #222; background: #111; color: #fff; cursor: pointer; }
+      button.secondary { background: #fff; color: #111; border-color: #bbb; }
+      .path { margin-top: 12px; color: #333; }
+      .small { margin-top: 18px; color: #666; font-size: 12px; line-height: 1.4; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="title">Config required</div>
+      <p class="sub">
+        Edit <code>app.env</code>, set <code>DATABASE_URL</code>, then click <b>Relaunch</b>.
+      </p>
+
+      <div id="msg" class="msg" style="display:none;"></div>
+
+      <div class="path">
+        <div><b>Config file:</b> <span id="envPath">Loading…</span></div>
+        <div><b>Config folder:</b> <span id="configDir">Loading…</span></div>
+        <div><b>Log file:</b> <span id="logPath">Loading…</span></div>
+      </div>
+
+      <div class="row">
+        <button id="openFile">Open config file</button>
+        <button id="openFolder" class="secondary">Open config folder</button>
+        <button id="relaunch" class="secondary">Relaunch</button>
+      </div>
+
+      <div class="small">
+        Tip: Your file is at <code>%APPDATA%\powerhouse-enterprise-desktop\config\app.env</code>.
+      </div>
+    </div>
+
+    <script>
+      (async function () {
+        const params = new URLSearchParams(location.search);
+        const msg = params.get("msg") || "";
+        if (msg.trim()) {
+          const el = document.getElementById("msg");
+          el.textContent = msg;
+          el.style.display = "block";
+        }
+
+        const paths = await window.ph.getPaths();
+        document.getElementById("envPath").textContent = paths.envPath;
+        document.getElementById("configDir").textContent = paths.configDir;
+        document.getElementById("logPath").textContent = paths.logPath;
+
+        document.getElementById("openFile").onclick = () => window.ph.openEnvFile();
+        document.getElementById("openFolder").onclick = () => window.ph.openEnvFolder();
+        document.getElementById("relaunch").onclick = () => window.ph.relaunch();
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "task": "Customer Feedback Analysis",
+  "source": "Product Reviews - Mobile App",
+  "period": "Last 30 days",
+  "feedback_count": 247,
+  "feedback_samples": [
+    {
+      "id": 1,
+      "rating": 5,
+      "comment": "Excellent user interface, very intuitive!",
+      "category": "UI/UX"
+    },
+    {
+      "id": 2,
+      "rating": 3,
+      "comment": "Good features but occasional crashes",
+      "category": "Stability"
+    },
+    {
+      "id": 3,
+      "rating": 4,
+      "comment": "Great customer support, resolved my issue quickly",
+      "category": "Support"
+    }
+  ],
+  "analysis_goals": [
+    "Identify common pain points",
+    "Extract sentiment scores",
+    "Categorize feedback themes",
+    "Prioritize improvement areas"
+  ]
+}

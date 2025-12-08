@@ -1,0 +1,56 @@
+
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "refresh": "Refresh",
+    "settings": "Settings",
+    "logout": "Logout",
+    "login": "Login"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "agents": "Agents",
+    "workflows": "Workflows",
+    "dataManager": "Data Manager",
+    "aiQuality": "AI Quality",
+    "integrations": "Integrations",
+    "architecture": "Architecture",
+    "observability": "Observability",
+    "compliance": "Compliance"
+  },
+  "dashboard": {
+    "title": "Enterprise Dashboard",
+    "subtitle": "Real-time monitoring and analytics",
+    "systemHealth": "System Health",
+    "activeAgents": "Active Agents",
+    "tasksThroughput": "Tasks Throughput",
+    "modelAccuracy": "Model Accuracy"
+  },
+  "agents": {
+    "title": "AI Agents",
+    "subtitle": "Manage and monitor your AI agents",
+    "totalAgents": "Total Agents",
+    "activeNow": "Active Now",
+    "avgSuccessRate": "Avg Success Rate"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Configure your preferences",
+    "appearance": "Appearance",
+    "language": "Language",
+    "notifications": "Notifications",
+    "accessibility": "Accessibility",
+    "privacy": "Privacy"
+  }
+}

@@ -1,0 +1,40 @@
+
+{
+  "common": {
+    "loading": "Laden...",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "create": "Erstellen",
+    "search": "Suchen",
+    "filter": "Filtern",
+    "export": "Exportieren",
+    "import": "Importieren",
+    "refresh": "Aktualisieren",
+    "settings": "Einstellungen",
+    "logout": "Abmelden",
+    "login": "Anmelden"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "agents": "Agenten",
+    "workflows": "Workflows",
+    "dataManager": "Datenmanager",
+    "aiQuality": "KI-Qualität",
+    "integrations": "Integrationen",
+    "architecture": "Architektur",
+    "observability": "Beobachtbarkeit",
+    "compliance": "Compliance"
+  },
+  "dashboard": {
+    "title": "Unternehmens-Dashboard",
+    "subtitle": "Echtzeit-Überwachung und Analyse",
+    "systemHealth": "Systemzustand",
+    "activeAgents": "Aktive Agenten",
+    "tasksThroughput": "Aufgabendurchsatz",
+    "modelAccuracy": "Modellgenauigkeit"
+  }
+}

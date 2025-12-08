@@ -1,0 +1,27 @@
+
+{
+  "name": "Batch Processing Template",
+  "description": "Process multiple inputs with the same agent configuration",
+  "category": "batch",
+  "version": "1.0",
+  "template": {
+    "task_type": "batch",
+    "agent": "react",
+    "inputs": [
+      {"id": "item1", "prompt": "Task 1"},
+      {"id": "item2", "prompt": "Task 2"},
+      {"id": "item3", "prompt": "Task 3"}
+    ],
+    "config": {
+      "parallel": true,
+      "max_concurrent": 3
+    }
+  },
+  "example": {
+    "inputs": [
+      {"id": "customer1", "prompt": "Analyze customer feedback: [feedback text]"},
+      {"id": "customer2", "prompt": "Analyze customer feedback: [feedback text]"},
+      {"id": "customer3", "prompt": "Analyze customer feedback: [feedback text]"}
+    ]
+  }
+}

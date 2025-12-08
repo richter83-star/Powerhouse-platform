@@ -1,0 +1,28 @@
+{
+  "max_agents": 19,
+  "enabled_agents": [
+    "curriculum_agent",
+    "chain_of_thought",
+    "toolformer",
+    "multi_agent",
+    "voyager",
+    "debate",
+    "generative_agents",
+    "reflection",
+    "evaluator",
+    "react",
+    "memory_agent",
+    "planning",
+    "swarm",
+    "tree_of_thought",
+    "auto_loop_agent",
+    "hierarchical_agents",
+    "governor",
+    "adaptive_memory",
+    "meta_evolver"
+  ],
+  "limits": {
+    "max_depth": 4,
+    "max_steps": 12
+  }
+}

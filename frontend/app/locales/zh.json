@@ -1,0 +1,40 @@
+
+{
+  "common": {
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "search": "搜索",
+    "filter": "筛选",
+    "export": "导出",
+    "import": "导入",
+    "refresh": "刷新",
+    "settings": "设置",
+    "logout": "登出",
+    "login": "登录"
+  },
+  "nav": {
+    "dashboard": "仪表板",
+    "agents": "代理",
+    "workflows": "工作流",
+    "dataManager": "数据管理器",
+    "aiQuality": "AI质量",
+    "integrations": "集成",
+    "architecture": "架构",
+    "observability": "可观测性",
+    "compliance": "合规性"
+  },
+  "dashboard": {
+    "title": "企业仪表板",
+    "subtitle": "实时监控和分析",
+    "systemHealth": "系统健康",
+    "activeAgents": "活跃代理",
+    "tasksThroughput": "任务吞吐量",
+    "modelAccuracy": "模型精度"
+  }
+}

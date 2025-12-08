@@ -1,0 +1,6 @@
+emp_id,name,department,role,start_date,onboarding_tasks
+EMP001,Alice Johnson,Engineering,Senior Developer,2024-10-15,"setup_access,training,mentor_assignment"
+EMP002,Bob Smith,Marketing,Content Manager,2024-10-16,"setup_access,training,team_introduction"
+EMP003,Carol White,Sales,Account Executive,2024-10-18,"setup_access,crm_training,territory_assignment"
+EMP004,David Brown,Operations,Operations Manager,2024-10-20,"setup_access,process_training,team_handoff"
+EMP005,Eve Davis,Engineering,QA Engineer,2024-10-22,"setup_access,testing_tools,documentation"

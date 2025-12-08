@@ -1,0 +1,20 @@
+
+{
+  "task": "Analyze the following business scenario and provide recommendations",
+  "scenario": {
+    "company": "TechStartup Inc.",
+    "industry": "SaaS",
+    "challenge": "Customer churn rate has increased from 5% to 12% in the last quarter",
+    "data": {
+      "monthly_revenue": "$500,000",
+      "customer_count": 1200,
+      "avg_customer_lifetime": "18 months",
+      "support_tickets": "increased by 40%"
+    }
+  },
+  "requirements": [
+    "Identify root causes",
+    "Propose actionable solutions",
+    "Estimate impact of recommendations"
+  ]
+}
