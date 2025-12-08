@@ -117,3 +117,59 @@ def reset_settings():
     settings.debug = original_debug
     settings.log_level = original_log_level
 
+
+@pytest.fixture
+def mock_redis():
+    """Mock Redis client for testing."""
+    mock_redis = Mock()
+    mock_redis.ping.return_value = True
+    mock_redis.get.return_value = None
+    mock_redis.setex.return_value = True
+    mock_redis.delete.return_value = 1
+    mock_redis.exists.return_value = 0
+    mock_redis.keys.return_value = []
+    return mock_redis
+
+
+@pytest.fixture
+def cache_instance(mock_redis):
+    """Cache instance for testing."""
+    from core.cache.redis_cache import RedisCache
+    return RedisCache(redis_client=mock_redis)
+
+
+@pytest.fixture
+def metrics_collector():
+    """Metrics collector fixture."""
+    from core.monitoring.metrics import REGISTRY
+    # Clear metrics before test
+    for collector in list(REGISTRY._collector_to_names.keys()):
+        REGISTRY.unregister(collector)
+    yield
+    # Cleanup after test
+    for collector in list(REGISTRY._collector_to_names.keys()):
+        REGISTRY.unregister(collector)
+
+
+@pytest.fixture
+def performance_timer():
+    """Performance timer utility."""
+    class PerformanceTimer:
+        def __init__(self):
+            self.start_time = None
+            self.end_time = None
+        
+        def start(self):
+            self.start_time = time.time()
+        
+        def stop(self):
+            self.end_time = time.time()
+            return self.end_time - self.start_time
+        
+        def elapsed(self):
+            if self.start_time and self.end_time:
+                return self.end_time - self.start_time
+            return None
+    
+    return PerformanceTimer()
+
