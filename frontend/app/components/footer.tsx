@@ -40,10 +40,22 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Contact */}
+          {/* Legal */}
           <div>
-            <h3 className="text-white font-semibold mb-4">Company</h3>
-            <p className="text-sm text-gray-400">
+            <h3 className="text-white font-semibold mb-4">Legal</h3>
+            <ul className="space-y-2 text-sm">
+              <li>
+                <Link href="/legal/terms" className="hover:text-blue-400 transition-colors">
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
+                <Link href="/legal/privacy" className="hover:text-blue-400 transition-colors">
+                  Privacy Policy
+                </Link>
+              </li>
+            </ul>
+            <p className="text-sm text-gray-400 mt-4">
               © 2025 Powerhouse Platform. All rights reserved.
             </p>
           </div>

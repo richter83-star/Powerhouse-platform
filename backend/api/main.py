@@ -18,7 +18,7 @@ from fastapi.exceptions import RequestValidationError
 
 from config.settings import settings
 from api.models import HealthCheckResponse, ErrorResponse
-from api.routes import workflows, agents, auth
+from api.routes import workflows, agents, auth, onboarding
 from api import learning_routes, config_routes, budget_routes
 from api import marketplace_routes, agent_builder_routes, app_builder_routes
 
@@ -473,6 +473,7 @@ async def get_postman_collection():
 
 # Include routers
 app.include_router(auth.router, prefix=settings.api_v1_prefix)
+app.include_router(onboarding.router)  # Onboarding routes have their own prefix
 app.include_router(workflows.router, prefix=settings.api_v1_prefix)
 app.include_router(agents.router, prefix=settings.api_v1_prefix)
 app.include_router(learning_routes.router)  # Learning routes have their own prefix

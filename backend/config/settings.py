@@ -105,6 +105,60 @@ class Settings(BaseSettings):
     )
 
     # =====================================================================================
+    # Email Service
+    # =====================================================================================
+    email_provider: str = Field(
+        default="smtp",
+        description="Email provider: sendgrid, aws_ses, or smtp"
+    )
+    email_from: str = Field(
+        default="noreply@powerhouse.ai",
+        description="Default sender email address"
+    )
+    email_from_name: str = Field(
+        default="Powerhouse Platform",
+        description="Default sender name"
+    )
+    frontend_url: str = Field(
+        default="http://localhost:3000",
+        description="Frontend URL for email links"
+    )
+    
+    # SendGrid
+    sendgrid_api_key: Optional[str] = Field(
+        default=None,
+        description="SendGrid API key"
+    )
+    
+    # AWS SES
+    aws_ses_region: Optional[str] = Field(
+        default=None,
+        description="AWS SES region"
+    )
+    
+    # SMTP
+    smtp_host: str = Field(
+        default="localhost",
+        description="SMTP server host"
+    )
+    smtp_port: int = Field(
+        default=587,
+        description="SMTP server port"
+    )
+    smtp_user: Optional[str] = Field(
+        default=None,
+        description="SMTP username"
+    )
+    smtp_password: Optional[str] = Field(
+        default=None,
+        description="SMTP password"
+    )
+    smtp_use_tls: bool = Field(
+        default=True,
+        description="Use TLS for SMTP"
+    )
+
+    # =====================================================================================
     # Third-Party / LLM API Keys
     # =====================================================================================
     abacusai_api_key: str = ""

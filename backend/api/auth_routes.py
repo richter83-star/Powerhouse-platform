@@ -364,9 +364,29 @@ async def signup(
             email=user.email
         )
         
-        # TODO: Send verification email with token
-        # For now, return token in response (remove in production!)
-        logger.info(f"Email verification token for {user.email}: {verification.token}")
+        # Send verification email
+        try:
+            from core.services.email_service import get_email_service
+            from core.services.email_templates import EmailTemplates
+            from config.settings import settings
+            
+            email_service = get_email_service()
+            verification_url = f"{settings.frontend_url}/verify-email?token={verification.token}"
+            template = EmailTemplates.verification_email(
+                verification_url=verification_url,
+                user_name=user.full_name or user.email
+            )
+            
+            await email_service.send_email(
+                to_email=user.email,
+                subject=template["subject"],
+                html_content=template["html"],
+                text_content=template["text"]
+            )
+            logger.info(f"Verification email sent to {user.email}")
+        except Exception as e:
+            logger.error(f"Failed to send verification email: {e}", exc_info=True)
+            # Don't fail signup if email fails, but log it
         
         # Log signup
         await audit_logger.log(
@@ -380,9 +400,8 @@ async def signup(
         )
         
         return {
-            "message": "User created successfully. Please verify your email.",
-            "user_id": user.id,
-            "verification_token": verification.token  # Remove in production!
+            "message": "User created successfully. Please check your email to verify your account.",
+            "user_id": user.id
         }
     
     except ValueError as e:
@@ -443,9 +462,28 @@ async def request_password_reset(
         # Create password reset token
         reset = user_service.create_password_reset_token(user.id)
         
-        # TODO: Send reset email with token
-        # For now, return token in response (remove in production!)
-        logger.info(f"Password reset token for {user.email}: {reset.token}")
+        # Send password reset email
+        try:
+            from core.services.email_service import get_email_service
+            from core.services.email_templates import EmailTemplates
+            from config.settings import settings
+            
+            email_service = get_email_service()
+            reset_url = f"{settings.frontend_url}/reset-password?token={reset.token}"
+            template = EmailTemplates.password_reset_email(
+                reset_url=reset_url,
+                user_name=user.full_name or user.email
+            )
+            
+            await email_service.send_email(
+                to_email=user.email,
+                subject=template["subject"],
+                html_content=template["html"],
+                text_content=template["text"]
+            )
+            logger.info(f"Password reset email sent to {user.email}")
+        except Exception as e:
+            logger.error(f"Failed to send password reset email: {e}", exc_info=True)
         
         # Log password reset request
         await audit_logger.log(
@@ -460,8 +498,7 @@ async def request_password_reset(
     
     # Always return success to prevent email enumeration
     return {
-        "message": "If the email exists, a password reset link has been sent.",
-        "reset_token": reset.token if user else None  # Remove in production!
+        "message": "If the email exists, a password reset link has been sent."
     }
 
 
