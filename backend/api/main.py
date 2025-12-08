@@ -233,6 +233,14 @@ try:
 except ImportError as e:
     logger.warning(f"Could not load correlation ID middleware: {e}")
 
+# Security headers middleware (OWASP compliance)
+try:
+    from api.middleware.security_headers import SecurityHeadersMiddleware
+    app.add_middleware(SecurityHeadersMiddleware, strict_csp=not settings.debug)
+    logger.info("Security headers middleware loaded")
+except ImportError as e:
+    logger.warning(f"Could not load security headers middleware: {e}")
+
 # Security middleware (JWT validation, audit logging)
 try:
     from api.middleware import SecurityMiddleware, RateLimitMiddleware
