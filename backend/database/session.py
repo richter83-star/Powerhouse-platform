@@ -2,7 +2,7 @@
 Database session management and initialization.
 """
 
-from typing import Generator
+from typing import Generator, Optional
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
@@ -12,6 +12,14 @@ from config.settings import settings
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Try to use optimized connection pool if available
+try:
+    from core.performance.connection_pool import create_optimized_engine
+    USE_OPTIMIZED_POOL = True
+except ImportError:
+    USE_OPTIMIZED_POOL = False
+    logger.warning("Optimized connection pool not available, using default")
 
 # Global engine and session factory
 _engine = None
@@ -30,20 +38,28 @@ def get_engine():
     if _engine is None:
         
         # Special handling for SQLite
-        if settings.database_url.startswith("sqlite"):
+        if settings.database_url and settings.database_url.startswith("sqlite"):
             _engine = create_engine(
                 settings.database_url,
                 connect_args={"check_same_thread": False},
                 poolclass=StaticPool,
                 echo=False
             )
+        elif USE_OPTIMIZED_POOL and not (settings.database_url and settings.database_url.startswith("sqlite")):
+            # Use optimized connection pool for PostgreSQL
+            _engine = create_optimized_engine()
         else:
+            # Fallback to default configuration
+            database_url = settings.database_url or (
+                f"postgresql://{settings.db_user}:{settings.db_password}"
+                f"@{settings.db_host}:{settings.db_port}/{settings.db_name}"
+            )
             _engine = create_engine(
-                settings.database_url,
+                database_url,
                 echo=False,
                 pool_pre_ping=True,
-                pool_size=5,
-                max_overflow=10
+                pool_size=10,  # Increased from 5
+                max_overflow=20  # Increased from 10
             )
         
         logger.info(f"Database engine created: {settings.database_url.split('://')[0]}")
