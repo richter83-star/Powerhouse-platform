@@ -8,8 +8,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Callable
 import time
 import json
+import logging
 
 from core.security import verify_token, rbac_manager, audit_logger, AuditEventType, AuditSeverity
+
+logger = logging.getLogger(__name__)
 
 class SecurityMiddleware(BaseHTTPMiddleware):
     """
@@ -104,40 +107,95 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
-    Rate limiting middleware to prevent abuse.
+    Redis-backed rate limiting middleware to prevent abuse.
+    
+    Works across multiple instances and survives restarts.
     """
     
     def __init__(self, app, requests_per_minute: int = 60):
         super().__init__(app)
         self.requests_per_minute = requests_per_minute
-        self.requests = {}  # {user_id: [(timestamp, count)]}
+        
+        # Initialize Redis rate limiter
+        try:
+            from core.resilience.redis_rate_limiter import (
+                get_redis_rate_limiter,
+                RateLimitConfig
+            )
+            self.rate_limiter = get_redis_rate_limiter()
+            self.rate_limit_config = RateLimitConfig(
+                max_requests=requests_per_minute,
+                time_window=60,  # 1 minute
+                burst_size=10  # Allow 10 extra requests as burst
+            )
+            self.use_redis = True
+        except Exception as e:
+            logger.warning(f"Failed to initialize Redis rate limiter: {e}. Falling back to in-memory.")
+            self.rate_limiter = None
+            self.requests = {}  # Fallback: in-memory dict
+            self.use_redis = False
     
     async def dispatch(self, request: Request, call_next: Callable):
         """Apply rate limiting"""
         # Get user from request state (set by SecurityMiddleware)
         user_id = getattr(request.state, 'user_id', None)
+        tenant_id = getattr(request.state, 'tenant_id', 'unknown')
         
-        if user_id:
-            current_time = time.time()
+        # Use IP address as fallback identifier if no user_id
+        identifier = user_id or request.client.host if request.client else "anonymous"
+        
+        if self.use_redis and self.rate_limiter:
+            # Use Redis rate limiting
+            allowed, info = self.rate_limiter.check_rate_limit(
+                identifier=f"{tenant_id}:{identifier}",
+                config=self.rate_limit_config
+            )
             
-            # Clean old entries
-            if user_id in self.requests:
-                self.requests[user_id] = [
-                    (ts, count) for ts, count in self.requests[user_id]
-                    if current_time - ts < 60
-                ]
-            else:
-                self.requests[user_id] = []
-            
-            # Count requests in last minute
-            recent_count = sum(count for _, count in self.requests[user_id])
-            
-            if recent_count >= self.requests_per_minute:
+            if not allowed:
                 # Log rate limit violation
                 await audit_logger.log(
                     event_type=AuditEventType.SECURITY_BREACH_ATTEMPT,
-                    user_id=user_id,
-                    tenant_id=getattr(request.state, 'tenant_id', 'unknown'),
+                    user_id=user_id or identifier,
+                    tenant_id=tenant_id,
+                    resource_type="api",
+                    resource_id=request.url.path,
+                    action="rate_limit_exceeded",
+                    outcome="blocked",
+                    severity=AuditSeverity.WARNING
+                )
+                
+                return JSONResponse(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    content={
+                        "detail": "Rate limit exceeded",
+                        "reset_time": info.get("reset_time"),
+                        "limit": info.get("limit")
+                    },
+                    headers={
+                        "X-RateLimit-Limit": str(info.get("limit", self.requests_per_minute)),
+                        "X-RateLimit-Remaining": str(info.get("remaining", 0)),
+                        "X-RateLimit-Reset": str(info.get("reset_time", int(time.time()) + 60))
+                    }
+                )
+        else:
+            # Fallback: in-memory rate limiting
+            current_time = time.time()
+            
+            if identifier in self.requests:
+                self.requests[identifier] = [
+                    (ts, count) for ts, count in self.requests[identifier]
+                    if current_time - ts < 60
+                ]
+            else:
+                self.requests[identifier] = []
+            
+            recent_count = sum(count for _, count in self.requests[identifier])
+            
+            if recent_count >= self.requests_per_minute:
+                await audit_logger.log(
+                    event_type=AuditEventType.SECURITY_BREACH_ATTEMPT,
+                    user_id=user_id or identifier,
+                    tenant_id=tenant_id,
                     resource_type="api",
                     resource_id=request.url.path,
                     action="rate_limit_exceeded",
@@ -150,10 +208,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     content={"detail": "Rate limit exceeded"}
                 )
             
-            # Record this request
-            self.requests[user_id].append((current_time, 1))
+            self.requests[identifier].append((current_time, 1))
         
         response = await call_next(request)
+        
+        # Add rate limit headers to response
+        if self.use_redis and self.rate_limiter:
+            info = self.rate_limiter.get_rate_limit_info(
+                identifier=f"{tenant_id}:{identifier}",
+                config=self.rate_limit_config
+            )
+            response.headers["X-RateLimit-Limit"] = str(info.get("limit", self.requests_per_minute))
+            response.headers["X-RateLimit-Remaining"] = str(info.get("remaining", 0))
+            response.headers["X-RateLimit-Reset"] = str(info.get("reset_time", int(time.time()) + 60))
+        
         return response
 
 class TenantIsolationMiddleware(BaseHTTPMiddleware):

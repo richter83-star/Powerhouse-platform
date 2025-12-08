@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     database_url: Optional[str] = None  # if provided manually, overrides the above fields
 
     # =====================================================================================
+    # Redis Connection
+    # =====================================================================================
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+    redis_password: Optional[str] = None
+
+    # =====================================================================================
     # CORS
     # =====================================================================================
     cors_origins: list[str] = Field(
