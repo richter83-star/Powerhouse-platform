@@ -96,6 +96,7 @@ class Run(Base):
     
     id = Column(String(36), primary_key=True)
     project_id = Column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False, index=True)  # Direct tenant reference for RLS
     status = Column(Enum(RunStatus), default=RunStatus.PENDING, nullable=False, index=True)
     config = Column(JSON, default=dict)  # Configuration used for this run
     input_data = Column(JSON)  # Input data/task
@@ -108,6 +109,7 @@ class Run(Base):
     
     # Relationships
     project = relationship("Project", back_populates="runs")
+    tenant = relationship("Tenant")
     agent_runs = relationship("AgentRun", back_populates="run", cascade="all, delete-orphan")
     messages = relationship("Message", back_populates="run", cascade="all, delete-orphan")
     
@@ -125,6 +127,7 @@ class AgentRun(Base):
     
     id = Column(String(36), primary_key=True)
     run_id = Column(String(36), ForeignKey("runs.id"), nullable=False, index=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False, index=True)  # Direct tenant reference for RLS
     agent_name = Column(String(255), nullable=False, index=True)
     agent_type = Column(String(100), nullable=False)
     status = Column(Enum(AgentRunStatus), default=AgentRunStatus.PENDING, nullable=False)
@@ -139,6 +142,7 @@ class AgentRun(Base):
     
     # Relationships
     run = relationship("Run", back_populates="agent_runs")
+    tenant = relationship("Tenant")
     
     def __repr__(self):
         return f"<AgentRun(id={self.id}, agent={self.agent_name}, status={self.status})>"
@@ -152,6 +156,7 @@ class Message(Base):
     
     id = Column(String(36), primary_key=True)
     run_id = Column(String(36), ForeignKey("runs.id"), nullable=False, index=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False, index=True)  # Direct tenant reference for RLS
     sender = Column(String(255), nullable=False)
     receiver = Column(String(255), nullable=False)
     message_type = Column(String(100), nullable=False)
@@ -161,6 +166,7 @@ class Message(Base):
     
     # Relationships
     run = relationship("Run", back_populates="messages")
+    tenant = relationship("Tenant")
     
     def __repr__(self):
         return f"<Message(id={self.id}, {self.sender}->{self.receiver})>"
@@ -175,6 +181,7 @@ class ModelVersion(Base):
     __tablename__ = "model_versions"
     
     id = Column(String(36), primary_key=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)  # Nullable for system-wide models
     model_type = Column(String(100), nullable=False, index=True)
     version_number = Column(Integer, nullable=False)
     status = Column(Enum(ModelStatus), default=ModelStatus.TRAINING, nullable=False)
@@ -206,6 +213,7 @@ class ModelVersion(Base):
     deprecated_at = Column(DateTime)
     
     # Relationships
+    tenant = relationship("Tenant")
     parent = relationship("ModelVersion", remote_side=[id], backref="children")
     
     def __repr__(self):
@@ -222,6 +230,7 @@ class LearningEvent(Base):
     
     id = Column(String(36), primary_key=True)
     model_version_id = Column(String(36), ForeignKey("model_versions.id"), nullable=False, index=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)  # Nullable for system-wide events
     
     # Event details
     event_type = Column(String(100), nullable=False)  # 'micro_batch', 'full_retrain', etc.
@@ -238,6 +247,7 @@ class LearningEvent(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
     # Relationships
+    tenant = relationship("Tenant")
     model_version = relationship("ModelVersion")
     
     def __repr__(self):

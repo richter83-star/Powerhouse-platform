@@ -3,7 +3,7 @@ Database session management and initialization.
 """
 
 from typing import Generator
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
@@ -95,6 +95,25 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def set_tenant_context(db: Session, tenant_id: str) -> None:
+    """
+    Set tenant context for Row-Level Security (RLS).
+    
+    This sets the PostgreSQL session variable that RLS policies use
+    to filter queries by tenant.
+    
+    Args:
+        db: Database session
+        tenant_id: Tenant ID to set
+    """
+    try:
+        # Set the tenant context for RLS
+        db.execute(text("SET LOCAL app.current_tenant_id = :tenant_id"), {"tenant_id": tenant_id})
+        db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to set tenant context (RLS may not be enabled): {e}")
 
 
 def init_db(drop_all: bool = False) -> None:
