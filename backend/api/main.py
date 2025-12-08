@@ -6,6 +6,8 @@ platform capabilities via HTTP endpoints.
 """
 
 import logging
+import uuid
+import time
 from datetime import datetime
 from contextlib import asynccontextmanager
 
@@ -59,12 +61,24 @@ except ImportError:
 
 from database.session import get_engine
 from database.models import Base
+from sqlalchemy import text
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+try:
+    from core.logging.structured_logger import setup_structured_logging
+    setup_structured_logging(
+        log_level=settings.log_level,
+        log_format=settings.log_format,
+        enable_file_logging=getattr(settings, 'enable_file_logging', False),
+        log_file_path=getattr(settings, 'log_file_path', None)
+    )
+except ImportError:
+    # Fallback to basic logging if structured logger not available
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,6 +92,21 @@ async def lifespan(app: FastAPI):
     Lifespan context manager for startup and shutdown events.
     """
     # Startup
+    global _startup_time
+    _startup_time = time.time()
+    
+    # Initialize Sentry if configured
+    if settings.sentry_dsn:
+        try:
+            from core.monitoring.sentry_config import init_sentry
+            init_sentry(
+                dsn=settings.sentry_dsn,
+                environment=settings.sentry_environment or settings.environment,
+                release=settings.app_version
+            )
+        except Exception as e:
+            logger.warning(f"Failed to initialize Sentry: {e}")
+    
     logger.info("Starting Powerhouse Multi-Agent Platform API")
     logger.info(f"Version: {settings.app_version}")
     logger.info(f"Debug mode: {settings.debug}")
@@ -196,6 +225,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Correlation ID middleware (must be first)
+try:
+    from api.middleware.correlation_id import CorrelationIDMiddleware
+    app.add_middleware(CorrelationIDMiddleware)
+    logger.info("Correlation ID middleware loaded")
+except ImportError as e:
+    logger.warning(f"Could not load correlation ID middleware: {e}")
+
 # Security middleware (JWT validation, audit logging)
 try:
     from api.middleware import SecurityMiddleware, RateLimitMiddleware
@@ -225,7 +262,18 @@ async def log_requests(request: Request, call_next):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle validation errors."""
-    logger.error(f"Validation error: {exc}")
+    correlation_id = getattr(request.state, 'correlation_id', None)
+    
+    logger.error(
+        f"Validation error: {exc}",
+        extra={
+            "correlation_id": correlation_id,
+            "tenant_id": getattr(request.state, 'tenant_id', None),
+            "user_id": getattr(request.state, 'user_id', None),
+            "path": request.url.path,
+            "method": request.method
+        }
+    )
     
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -233,6 +281,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             error="ValidationError",
             message="Invalid request data",
             details={"errors": exc.errors()},
+            correlation_id=correlation_id,
+            error_code="VALIDATION_ERROR",
             timestamp=datetime.utcnow()
         ).model_dump()
     )
@@ -241,22 +291,57 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle general exceptions."""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    correlation_id = getattr(request.state, 'correlation_id', None)
+    error_id = str(uuid.uuid4())
+    
+    logger.error(
+        f"Unhandled exception: {exc}",
+        exc_info=True,
+        extra={
+            "correlation_id": correlation_id,
+            "error_id": error_id,
+            "tenant_id": getattr(request.state, 'tenant_id', None),
+            "user_id": getattr(request.state, 'user_id', None),
+            "path": request.url.path,
+            "method": request.method,
+            "exception_type": type(exc).__name__
+        }
+    )
+    
+    # Send to error tracking service (Sentry) if configured
+    try:
+        from core.monitoring.sentry_config import capture_exception
+        capture_exception(exc, contexts={
+            "request": {
+                "url": str(request.url),
+                "method": request.method,
+            },
+            "correlation_id": correlation_id,
+            "tenant_id": getattr(request.state, 'tenant_id', None),
+            "user_id": getattr(request.state, 'user_id', None)
+        })
+    except Exception:
+        pass  # Sentry not configured or failed
     
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=ErrorResponse(
             error="InternalServerError",
-            message="An unexpected error occurred",
-            details={"error": str(exc)} if settings.debug else None,
+            message="An unexpected error occurred" if not settings.debug else str(exc),
+            details={
+                "error_id": error_id,
+                "error": str(exc),
+                "type": type(exc).__name__
+            } if settings.debug else {"error_id": error_id},
+            correlation_id=correlation_id,
+            error_code="INTERNAL_SERVER_ERROR",
             timestamp=datetime.utcnow()
         ).model_dump()
     )
 
 
-# ============================================================================
-# Routes
-# ============================================================================
+# Track startup time for uptime calculation (set during lifespan startup)
+_startup_time = None
 
 # Health check endpoint
 @app.get(
@@ -272,22 +357,57 @@ async def health_check():
     
     Returns the current status of the API and its dependencies.
     """
+    services_status = {}
+    all_healthy = True
+    
     # Check database connection
     db_connected = True
     try:
-        from database.session import SessionLocal
-        db = SessionLocal()
-        db.execute("SELECT 1")
-        db.close()
+        from database.session import get_engine
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        services_status["database"] = {"status": "healthy", "response_time_ms": 0}
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
         db_connected = False
+        all_healthy = False
+        services_status["database"] = {"status": "unhealthy", "error": str(e)}
+    
+    # Check Redis connection
+    redis_connected = None
+    try:
+        import redis
+        redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+        redis_client.ping()
+        redis_client.close()
+        redis_connected = True
+        services_status["redis"] = {"status": "healthy"}
+    except Exception as e:
+        logger.warning(f"Redis health check failed: {e}")
+        redis_connected = False
+        services_status["redis"] = {"status": "unhealthy", "error": str(e)}
+        # Redis failure doesn't make the service unhealthy (it's optional)
+    
+    # Calculate uptime
+    uptime_seconds = (time.time() - _startup_time) if _startup_time else None
+    
+    # Determine overall status
+    if all_healthy:
+        overall_status = "healthy"
+    elif db_connected:
+        overall_status = "degraded"
+    else:
+        overall_status = "unhealthy"
     
     return HealthCheckResponse(
-        status="healthy" if db_connected else "degraded",
+        status=overall_status,
         version=settings.app_version,
         timestamp=datetime.utcnow(),
-        database_connected=db_connected
+        database_connected=db_connected,
+        redis_connected=redis_connected,
+        services=services_status,
+        uptime_seconds=uptime_seconds
     )
 
 

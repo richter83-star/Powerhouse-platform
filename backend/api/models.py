@@ -224,10 +224,22 @@ class AgentListResponse(BaseModel):
 class HealthCheckResponse(BaseModel):
     """Response model for health check."""
     
-    status: str = Field(..., description="Service status")
+    status: str = Field(..., description="Service status (healthy/degraded/unhealthy)")
     version: str = Field(..., description="API version")
     timestamp: datetime = Field(..., description="Current server timestamp")
     database_connected: bool = Field(..., description="Database connection status")
+    redis_connected: Optional[bool] = Field(
+        default=None,
+        description="Redis connection status"
+    )
+    services: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Status of individual services"
+    )
+    uptime_seconds: Optional[float] = Field(
+        default=None,
+        description="Service uptime in seconds"
+    )
 
 
 class ErrorResponse(BaseModel):
@@ -239,7 +251,15 @@ class ErrorResponse(BaseModel):
         default=None,
         description="Additional error details"
     )
+    correlation_id: Optional[str] = Field(
+        default=None,
+        description="Correlation ID for request tracking"
+    )
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    error_code: Optional[str] = Field(
+        default=None,
+        description="Machine-readable error code"
+    )
     
     model_config = ConfigDict(
         json_schema_extra={
@@ -247,7 +267,9 @@ class ErrorResponse(BaseModel):
                 "error": "ValidationError",
                 "message": "Invalid input data",
                 "details": {"field": "query", "issue": "too short"},
-                "timestamp": "2025-10-06T12:00:00Z"
+                "correlation_id": "abc123-def456",
+                "timestamp": "2025-10-06T12:00:00Z",
+                "error_code": "VALIDATION_ERROR"
             }
         }
     )

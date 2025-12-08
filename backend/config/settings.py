@@ -83,6 +83,26 @@ class Settings(BaseSettings):
         default="text",
         description="Log format (text or json)"
     )
+    enable_file_logging: bool = Field(
+        default=False,
+        description="Enable file logging"
+    )
+    log_file_path: Optional[str] = Field(
+        default=None,
+        description="Path to log file (default: logs/powerhouse.log)"
+    )
+    
+    # =====================================================================================
+    # Monitoring & Error Tracking
+    # =====================================================================================
+    sentry_dsn: Optional[str] = Field(
+        default=None,
+        description="Sentry DSN for error tracking"
+    )
+    sentry_environment: Optional[str] = Field(
+        default=None,
+        description="Sentry environment (production, staging, development)"
+    )
 
     # =====================================================================================
     # Third-Party / LLM API Keys
