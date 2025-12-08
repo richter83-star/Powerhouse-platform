@@ -25,6 +25,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     EXEMPT_PATHS = [
         "/api/auth/login",
         "/api/auth/refresh",
+        "/api/billing/webhook",  # Stripe webhook (has its own signature verification)
         "/docs",
         "/redoc",
         "/openapi.json",

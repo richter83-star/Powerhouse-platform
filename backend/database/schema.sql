@@ -99,6 +99,71 @@ CREATE TABLE IF NOT EXISTS platform_revenue (
     payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Subscription and Billing Tables
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id SERIAL PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    stripe_customer_id VARCHAR(255),
+    stripe_subscription_id VARCHAR(255) UNIQUE,
+    stripe_price_id VARCHAR(255),
+    plan_id VARCHAR(100) NOT NULL,
+    plan_name VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL, -- active, canceled, past_due, trialing, incomplete
+    current_period_start TIMESTAMP,
+    current_period_end TIMESTAMP,
+    cancel_at_period_end BOOLEAN DEFAULT FALSE,
+    canceled_at TIMESTAMP,
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'usd',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS invoices (
+    id SERIAL PRIMARY KEY,
+    subscription_id INTEGER REFERENCES subscriptions(id),
+    tenant_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    stripe_invoice_id VARCHAR(255) UNIQUE,
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'usd',
+    status VARCHAR(50) NOT NULL, -- paid, open, void, uncollectible
+    period_start TIMESTAMP,
+    period_end TIMESTAMP,
+    invoice_date TIMESTAMP,
+    pdf_url VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS payment_methods (
+    id SERIAL PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    stripe_payment_method_id VARCHAR(255) UNIQUE,
+    type VARCHAR(50) NOT NULL, -- card, etc.
+    card_brand VARCHAR(50),
+    card_last4 VARCHAR(4),
+    card_exp_month INTEGER,
+    card_exp_year INTEGER,
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for subscriptions
+CREATE INDEX IF NOT EXISTS idx_subscriptions_tenant ON subscriptions(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer ON subscriptions(stripe_customer_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription ON subscriptions(stripe_subscription_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+CREATE INDEX IF NOT EXISTS idx_invoices_subscription ON invoices(subscription_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON invoices(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_stripe_invoice ON invoices(stripe_invoice_id);
+CREATE INDEX IF NOT EXISTS idx_payment_methods_tenant ON payment_methods(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_payment_methods_user ON payment_methods(user_id);
+CREATE INDEX IF NOT EXISTS idx_payment_methods_stripe_pm ON payment_methods(stripe_payment_method_id);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_listings_category ON marketplace_listings(category);
 CREATE INDEX IF NOT EXISTS idx_listings_seller ON marketplace_listings(seller_id);

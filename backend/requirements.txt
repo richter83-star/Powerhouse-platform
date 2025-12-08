@@ -65,6 +65,9 @@ requests>=2.31.0
 sendgrid>=6.10.0  # SendGrid email service
 boto3>=1.34.0  # AWS SES support (optional)
 
+# Payment Processing
+stripe>=7.0.0  # Stripe API for payment processing and subscriptions
+
 # Testing
 pytest>=7.4.0
 pytest-asyncio>=0.21.0

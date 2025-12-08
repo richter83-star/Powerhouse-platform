@@ -551,6 +551,22 @@ try:
 except ImportError as e:
     logger.warning(f"Could not load commercial routes: {e}")
 
+# Include billing routes (Stripe subscriptions)
+try:
+    from api.billing_routes import router as billing_router
+    app.include_router(billing_router, tags=["billing"])
+    logger.info("Billing routes loaded (Stripe subscriptions)")
+except ImportError as e:
+    logger.warning(f"Could not load billing routes: {e}")
+
+# Include usage routes (Usage-based billing)
+try:
+    from api.usage_routes import router as usage_router
+    app.include_router(usage_router, tags=["usage"])
+    logger.info("Usage routes loaded (Usage-based billing)")
+except ImportError as e:
+    logger.warning(f"Could not load usage routes: {e}")
+
 # Include deployment routes (health checks, backups)
 try:
     from api.deployment_routes import router as deployment_router

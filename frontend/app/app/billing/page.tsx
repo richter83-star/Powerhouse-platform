@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CreditCard, Download, Calendar, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { CreditCard, Download, Calendar, CheckCircle2, XCircle, AlertCircle, Plus, Trash2, Star, Activity } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
 interface Subscription {
   id: string;
@@ -44,12 +45,97 @@ interface PaymentMethod {
   is_default: boolean;
 }
 
+interface UsageData {
+  api_calls: number;
+  agent_executions: number;
+  workflow_runs: number;
+  storage_gb: number;
+  compute_hours: number;
+  total_cost: number;
+  limits?: {
+    api_calls_per_hour?: number;
+  };
+}
+
+function UsageDashboard() {
+  const [usage, setUsage] = useState<UsageData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUsage();
+  }, []);
+
+  const fetchUsage = async () => {
+    try {
+      const response = await fetch("/api/billing/usage/current-month");
+      if (response.ok) {
+        const data = await response.json();
+        setUsage(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch usage:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-8 text-muted-foreground">Loading usage data...</div>;
+  }
+
+  if (!usage) {
+    return <div className="text-center py-8 text-muted-foreground">No usage data available</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 border rounded-lg">
+          <div className="text-sm text-muted-foreground">API Calls</div>
+          <div className="text-2xl font-bold mt-1">{usage.api_calls.toLocaleString()}</div>
+          {usage.limits?.api_calls_per_hour && (
+            <div className="text-xs text-muted-foreground mt-1">
+              Limit: {usage.limits.api_calls_per_hour.toLocaleString()}/hour
+            </div>
+          )}
+        </div>
+        <div className="p-4 border rounded-lg">
+          <div className="text-sm text-muted-foreground">Agent Executions</div>
+          <div className="text-2xl font-bold mt-1">{usage.agent_executions.toLocaleString()}</div>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <div className="text-sm text-muted-foreground">Workflow Runs</div>
+          <div className="text-2xl font-bold mt-1">{usage.workflow_runs.toLocaleString()}</div>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <div className="text-sm text-muted-foreground">Storage</div>
+          <div className="text-2xl font-bold mt-1">{usage.storage_gb.toFixed(2)} GB</div>
+        </div>
+      </div>
+      <div className="p-4 bg-primary/5 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm text-muted-foreground">Estimated Cost</div>
+            <div className="text-2xl font-bold mt-1">
+              ${usage.total_cost.toFixed(2)}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">This month</div>
+          </div>
+          <Activity className="h-8 w-8 text-primary" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BillingPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [showAddPaymentMethod, setShowAddPaymentMethod] = useState(false);
+  const [setupIntentClientSecret, setSetupIntentClientSecret] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBillingData();
@@ -200,6 +286,7 @@ export default function BillingPage() {
       <Tabs defaultValue="subscription" className="space-y-6">
         <TabsList>
           <TabsTrigger value="subscription">Subscription</TabsTrigger>
+          <TabsTrigger value="usage">Usage</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
           <TabsTrigger value="payment-methods">Payment Methods</TabsTrigger>
         </TabsList>
@@ -290,6 +377,18 @@ export default function BillingPage() {
                   </Link>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="usage" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Current Month Usage</CardTitle>
+              <CardDescription>Track your resource usage and limits</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <UsageDashboard />
             </CardContent>
           </Card>
         </TabsContent>
@@ -388,21 +487,94 @@ export default function BillingPage() {
                           <Badge variant="default">Default</Badge>
                         )}
                       </div>
-                      <Button variant="outline" size="sm">
-                        Update
-                      </Button>
+                      <div className="flex gap-2">
+                        {!pm.is_default && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(`/api/billing/payment-methods/${pm.id}/set-default`, {
+                                  method: "POST"
+                                });
+                                if (response.ok) {
+                                  toast.success("Default payment method updated");
+                                  fetchBillingData();
+                                }
+                              } catch (error) {
+                                toast.error("Failed to set default payment method");
+                              }
+                            }}
+                          >
+                            <Star className="h-4 w-4 mr-1" />
+                            Set Default
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            if (!confirm("Are you sure you want to delete this payment method?")) return;
+                            try {
+                              const response = await fetch(`/api/billing/payment-methods/${pm.id}`, {
+                                method: "DELETE"
+                              });
+                              if (response.ok) {
+                                toast.success("Payment method deleted");
+                                fetchBillingData();
+                              }
+                            } catch (error) {
+                              toast.error("Failed to delete payment method");
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
-                  <Button variant="outline" className="w-full">
-                    <CreditCard className="h-4 w-4 mr-2" />
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        const response = await fetch("/api/billing/payment-methods/setup-intent", {
+                          method: "POST"
+                        });
+                        if (response.ok) {
+                          const data = await response.json();
+                          setSetupIntentClientSecret(data.client_secret);
+                          setShowAddPaymentMethod(true);
+                        }
+                      } catch (error) {
+                        toast.error("Failed to create setup intent");
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
                     Add Payment Method
                   </Button>
                 </div>
               ) : (
                 <div className="text-center py-8">
                   <p className="text-muted-foreground mb-4">No payment methods on file</p>
-                  <Button>
-                    <CreditCard className="h-4 w-4 mr-2" />
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch("/api/billing/payment-methods/setup-intent", {
+                          method: "POST"
+                        });
+                        if (response.ok) {
+                          const data = await response.json();
+                          setSetupIntentClientSecret(data.client_secret);
+                          setShowAddPaymentMethod(true);
+                        }
+                      } catch (error) {
+                        toast.error("Failed to create setup intent");
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
                     Add Payment Method
                   </Button>
                 </div>
@@ -411,6 +583,41 @@ export default function BillingPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Add Payment Method Modal - Simplified version */}
+      {showAddPaymentMethod && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-4">Add Payment Method</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Payment method collection will be integrated with Stripe Elements.
+              For now, use Stripe Checkout to add payment methods.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setShowAddPaymentMethod(false);
+                  setSetupIntentClientSecret(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  // In production, integrate Stripe Elements here
+                  toast.info("Stripe Elements integration needed for in-app payment method collection");
+                  setShowAddPaymentMethod(false);
+                }}
+              >
+                Continue
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

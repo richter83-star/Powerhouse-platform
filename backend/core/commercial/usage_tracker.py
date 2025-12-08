@@ -9,6 +9,9 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from collections import defaultdict
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class UsageRecord:
@@ -51,9 +54,23 @@ class UsageTracker:
         tenant_id: str,
         resource_type: str,
         quantity: float = 1.0,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        sync_to_stripe: bool = False,
+        stripe_customer_id: Optional[str] = None,
+        stripe_meter_ids: Optional[Dict[str, str]] = None
     ) -> UsageRecord:
-        """Record a usage event"""
+        """
+        Record a usage event.
+        
+        Args:
+            tenant_id: Tenant ID
+            resource_type: Type of resource (api_call, agent_execution, etc.)
+            quantity: Usage quantity
+            metadata: Additional metadata
+            sync_to_stripe: If True, sync to Stripe Meter
+            stripe_customer_id: Stripe customer ID for syncing
+            stripe_meter_ids: Dict mapping resource_type to Stripe meter_id
+        """
         record = UsageRecord(
             tenant_id=tenant_id,
             timestamp=datetime.utcnow(),
@@ -62,6 +79,24 @@ class UsageTracker:
             metadata=metadata or {}
         )
         self._usage_records.append(record)
+        
+        # Sync to Stripe if configured
+        if sync_to_stripe and stripe_customer_id and stripe_meter_ids:
+            meter_id = stripe_meter_ids.get(resource_type)
+            if meter_id:
+                try:
+                    from core.commercial.stripe_service import get_stripe_service
+                    stripe_service = get_stripe_service()
+                    stripe_service.record_usage_event(
+                        meter_id=meter_id,
+                        identifier=stripe_customer_id,
+                        value=quantity,
+                        timestamp=int(record.timestamp.timestamp())
+                    )
+                    logger.debug(f"Synced usage to Stripe: {resource_type} = {quantity}")
+                except Exception as e:
+                    logger.warning(f"Failed to sync usage to Stripe: {e}")
+        
         return record
     
     def get_usage_summary(
