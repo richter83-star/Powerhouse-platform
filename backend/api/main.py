@@ -476,6 +476,14 @@ app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(workflows.router, prefix=settings.api_v1_prefix)
 app.include_router(agents.router, prefix=settings.api_v1_prefix)
 app.include_router(learning_routes.router)  # Learning routes have their own prefix
+
+# Include metrics routes
+try:
+    from api.routes.metrics import router as metrics_router
+    app.include_router(metrics_router)
+    logger.info("Metrics routes loaded")
+except ImportError as e:
+    logger.warning(f"Could not load metrics routes: {e}")
 app.include_router(config_routes.router)  # Configuration routes have their own prefix
 app.include_router(budget_routes.router, prefix=settings.api_v1_prefix)  # Budget and rate limiting routes
 app.include_router(marketplace_routes.router, prefix=settings.api_v1_prefix, tags=["marketplace"])  # Marketplace routes
