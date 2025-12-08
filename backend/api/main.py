@@ -431,7 +431,8 @@ async def root():
         "documentation": {
             "swagger": "/docs",
             "redoc": "/redoc",
-            "openapi": "/openapi.json"
+            "openapi": "/openapi.json",
+            "postman": "/postman.json"
         },
         "endpoints": {
             "health": "/health",
@@ -441,6 +442,25 @@ async def root():
             "learning": "/api/learning"
         }
     }
+
+
+# Documentation endpoints
+@app.get(
+    "/postman.json",
+    tags=["documentation"],
+    summary="Postman Collection",
+    description="Download Postman collection for API testing",
+    include_in_schema=True
+)
+async def get_postman_collection():
+    """
+    Get Postman collection v2.1 for API testing.
+    
+    Import this collection into Postman to quickly test all API endpoints.
+    """
+    from api.docs_config import generate_postman_collection
+    collection = generate_postman_collection(app)
+    return JSONResponse(content=collection, media_type="application/json")
 
 
 # Include routers

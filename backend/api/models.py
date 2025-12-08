@@ -47,25 +47,36 @@ class ComplianceWorkflowRequest(BaseModel):
         ...,
         description="The compliance query or policy text to analyze",
         min_length=10,
-        max_length=10000
+        max_length=10000,
+        examples=[
+            "Analyze our data retention policy for GDPR compliance",
+            "Review our customer data handling procedures for CCPA compliance",
+            "Assess our security practices against ISO 27001 requirements"
+        ]
     )
     policy_documents: Optional[List[str]] = Field(
         default=None,
-        description="Optional list of policy document URLs or paths"
+        description="Optional list of policy document URLs or paths",
+        examples=[
+            ["https://example.com/policy.pdf", "https://example.com/terms.pdf"]
+        ]
     )
     jurisdiction: Optional[str] = Field(
         default=None,
-        description="Legal jurisdiction (e.g., 'US', 'EU', 'GDPR')"
+        description="Legal jurisdiction (e.g., 'US', 'EU', 'GDPR', 'CCPA', 'HIPAA')",
+        examples=["EU", "US", "GDPR", "CCPA"]
     )
     risk_threshold: Optional[float] = Field(
         default=0.7,
         ge=0.0,
         le=1.0,
-        description="Risk threshold for compliance evaluation (0-1)"
+        description="Risk threshold for compliance evaluation (0-1). Higher values require more confidence.",
+        examples=[0.7, 0.8, 0.9]
     )
     config: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Additional configuration parameters"
+        description="Additional configuration parameters",
+        examples=[{"custom_setting": "value"}]
     )
     
     model_config = ConfigDict(
@@ -73,7 +84,8 @@ class ComplianceWorkflowRequest(BaseModel):
             "example": {
                 "query": "Analyze our data retention policy for GDPR compliance",
                 "jurisdiction": "EU",
-                "risk_threshold": 0.8
+                "risk_threshold": 0.8,
+                "policy_documents": ["https://example.com/policy.pdf"]
             }
         }
     )
