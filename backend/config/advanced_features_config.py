@@ -11,7 +11,7 @@ from typing import Optional
 class AdvancedFeaturesConfig(BaseSettings):
     """Configuration for advanced AI features."""
     
-    # Feature Flags
+    # Feature Flags - All enabled by default
     ENABLE_CAUSAL_REASONING: bool = True
     ENABLE_NEUROSYMBOLIC: bool = True
     ENABLE_HIERARCHICAL_DECOMPOSITION: bool = True
