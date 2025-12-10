@@ -87,13 +87,28 @@ class AgentPerformanceModel:
     """
     Model that tracks agent performance patterns and learns optimal selections.
     
-    This model uses a multi-armed bandit approach with Thompson Sampling
-    to balance exploration and exploitation when selecting agents.
+    Uses neural network for selection when available, falls back to
+    multi-armed bandit approach with Thompson Sampling.
     """
     
-    def __init__(self, model_id: str = "agent_perf_v1"):
+    def __init__(self, model_id: str = "agent_perf_v1", use_neural: bool = True):
         """Initialize the agent performance model."""
         self.model_id = model_id
+        self.use_neural = use_neural
+        
+        # Try to use neural network model
+        self.neural_model = None
+        if use_neural:
+            try:
+                from core.learning.neural_agent_selector import NeuralAgentSelector
+                self.neural_model = NeuralAgentSelector(
+                    model_id=f"{model_id}_neural",
+                    num_agents=19  # Default number of agents
+                )
+                logger.info("Using neural network for agent selection")
+            except Exception as e:
+                logger.warning(f"Failed to initialize neural model, using fallback: {e}")
+                self.use_neural = False
         
         # Agent statistics: {agent_name: {'successes': int, 'failures': int, 'latencies': []}}
         self.agent_stats: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
@@ -146,6 +161,26 @@ class AgentPerformanceModel:
             context_key = self._extract_context_key(event.context_snapshot)
             self.context_patterns[context_key][agent_name] = self.get_success_rate(agent_name)
         
+        # Update neural model if available
+        if self.neural_model:
+            try:
+                # Extract features for the update
+                agent_history = {
+                    "success_rate": self.get_success_rate(agent_name),
+                    "avg_latency_ms": np.mean(list(stats['latencies'])) if stats['latencies'] else 1000.0,
+                    "total_runs": stats['successes'] + stats['failures']
+                }
+                features = self.neural_model.extract_features(
+                    task=event.action_type or "",
+                    task_type=event.action_type,
+                    context=event.context_snapshot,
+                    agent_name=agent_name,
+                    agent_history=agent_history
+                )
+                self.neural_model.update(event, features)
+            except Exception as e:
+                logger.warning(f"Failed to update neural model: {e}")
+        
         self.update_count += 1
         self.last_update = datetime.utcnow()
         
@@ -158,19 +193,50 @@ class AgentPerformanceModel:
         self,
         task_type: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
-        top_k: int = 3
+        top_k: int = 3,
+        task_description: Optional[str] = None
     ) -> List[Tuple[str, float]]:
         """
         Predict the best agents for a given task.
+        
+        Uses neural network if available, otherwise falls back to Thompson Sampling.
         
         Args:
             task_type: Type of task
             context: Task context
             top_k: Number of agents to return
+            task_description: Full task description (for neural model)
             
         Returns:
             List of (agent_name, score) tuples
         """
+        # Try neural model first
+        if self.neural_model and self.use_neural:
+            try:
+                # Build agent histories
+                agent_histories = {}
+                for agent_name, stats in self.agent_stats.items():
+                    agent_histories[agent_name] = {
+                        "success_rate": self.get_success_rate(agent_name),
+                        "avg_latency_ms": np.mean(list(stats['latencies'])) if stats['latencies'] else 1000.0,
+                        "total_runs": stats['successes'] + stats['failures']
+                    }
+                
+                # Use neural model prediction
+                neural_predictions = self.neural_model.predict_agent_scores(
+                    task=task_description or task_type or "",
+                    task_type=task_type,
+                    context=context,
+                    agent_histories=agent_histories
+                )
+                
+                if neural_predictions:
+                    logger.debug("Using neural network predictions for agent selection")
+                    return neural_predictions[:top_k]
+            except Exception as e:
+                logger.warning(f"Neural prediction failed, using fallback: {e}")
+        
+        # Fallback to Thompson Sampling (original method)
         scores: Dict[str, float] = {}
         
         for agent_name, stats in self.agent_stats.items():
@@ -242,6 +308,257 @@ class AgentPerformanceModel:
         }
 
 
+class ParameterOptimizationModel:
+    """
+    Model for optimizing LLM parameters.
+    
+    Uses reinforcement learning for parameter optimization when available.
+    """
+    
+    def __init__(self, model_id: str = "param_opt_v1", use_rl: bool = True):
+        self.model_id = model_id
+        self.use_rl = use_rl
+        self.parameter_history: deque = deque(maxlen=100)
+        self.outcome_history: deque = deque(maxlen=100)
+        self.current_parameters = {
+            "temperature": 0.7,
+            "max_tokens": 1000,
+            "top_p": 0.9
+        }
+        
+        # Try to initialize RL optimizer
+        self.rl_optimizer = None
+        if use_rl:
+            try:
+                from core.learning.reinforcement_learning import (
+                    ParameterOptimizerRL, RLState, RLReward
+                )
+                self.rl_optimizer = ParameterOptimizerRL(
+                    algorithm="ppo",  # Use PPO for continuous action space
+                    learning_rate=0.0003
+                )
+                logger.info("Using RL for parameter optimization")
+            except Exception as e:
+                logger.warning(f"Failed to initialize RL optimizer: {e}")
+                self.use_rl = False
+    
+    def update(self, event: OutcomeEvent) -> None:
+        """Update model with outcome event."""
+        if event.config_snapshot:
+            self.parameter_history.append(event.config_snapshot)
+            self.outcome_history.append(1.0 if event.status == OutcomeStatus.SUCCESS else 0.0)
+            
+            # Update RL optimizer if available
+            if self.rl_optimizer:
+                try:
+                    from core.learning.reinforcement_learning import RLState, RLReward
+                    
+                    # Create state from event
+                    state = RLState(
+                        task_complexity=0.5,  # Could be extracted from event
+                        current_parameters=event.config_snapshot or self.current_parameters,
+                        system_load=0.5,  # Could come from system monitoring
+                        agent_performance_history={},
+                        task_type=event.action_type
+                    )
+                    
+                    # Create reward from event
+                    latency_penalty = min(event.latency_ms / 10000.0, 1.0) if event.latency_ms else 0.0
+                    reward = RLReward(
+                        success=1.0 if event.status == OutcomeStatus.SUCCESS else 0.0,
+                        quality_score=event.quality_score or 0.5,
+                        latency_penalty=latency_penalty,
+                        cost_penalty=0.0  # Could be calculated from token usage
+                    )
+                    
+                    # Update RL (simplified - in production would track state transitions)
+                    # This is a simplified update without proper state transitions
+                    # For full RL, we'd need to track state-action-reward-next_state tuples
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to update RL optimizer: {e}")
+    
+    def predict_optimal_parameters(
+        self,
+        task_type: Optional[str] = None,
+        task_description: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Predict optimal parameters for LLM calls.
+        
+        Uses RL to select parameters based on task characteristics.
+        """
+        if self.rl_optimizer and self.use_rl:
+            try:
+                from core.learning.reinforcement_learning import RLState
+                
+                # Create state
+                state = RLState(
+                    task_complexity=self._estimate_complexity(task_description or task_type or ""),
+                    current_parameters=self.current_parameters,
+                    system_load=0.5,  # Could come from monitoring
+                    agent_performance_history={},
+                    task_type=task_type
+                )
+                
+                # Select action using RL
+                action = self.rl_optimizer.select_action(state, training=False)
+                
+                # Apply parameter adjustments
+                optimal_params = self.current_parameters.copy()
+                for param, adjustment in action.parameter_adjustments.items():
+                    if param in optimal_params:
+                        if param == "temperature":
+                            optimal_params[param] = np.clip(
+                                optimal_params[param] + adjustment, 0.0, 2.0
+                            )
+                        elif param == "max_tokens":
+                            optimal_params[param] = max(100, int(
+                                optimal_params[param] + adjustment
+                            ))
+                        elif param == "top_p":
+                            optimal_params[param] = np.clip(
+                                optimal_params[param] + adjustment, 0.0, 1.0
+                            )
+                
+                logger.debug(f"RL selected parameters: {optimal_params}")
+                return optimal_params
+                
+            except Exception as e:
+                logger.warning(f"RL parameter selection failed, using defaults: {e}")
+        
+        # Fallback to defaults or learned patterns
+        # Could use historical data to find best parameters for similar tasks
+        if task_type and self.parameter_history:
+            # Find best parameters for similar task types (simplified)
+            similar_params = [
+                params for params in self.parameter_history
+                if params.get("task_type") == task_type
+            ]
+            if similar_params:
+                # Use average of successful parameters
+                avg_temp = np.mean([p.get("temperature", 0.7) for p in similar_params])
+                avg_tokens = int(np.mean([p.get("max_tokens", 1000) for p in similar_params]))
+                avg_top_p = np.mean([p.get("top_p", 0.9) for p in similar_params])
+                return {
+                    "temperature": float(np.clip(avg_temp, 0.0, 2.0)),
+                    "max_tokens": max(100, avg_tokens),
+                    "top_p": float(np.clip(avg_top_p, 0.0, 1.0))
+                }
+        
+        # Default parameters
+        return self.current_parameters.copy()
+    
+    def _estimate_complexity(self, text: str) -> float:
+        """Estimate task complexity from text."""
+        if not text:
+            return 0.5
+        
+        # Simple heuristic based on length and keywords
+        complexity = min(1.0, len(text) / 500.0)
+        
+        complex_keywords = ["analyze", "synthesize", "evaluate", "design", "optimize"]
+        for keyword in complex_keywords:
+            if keyword in text.lower():
+                complexity = min(1.0, complexity + 0.15)
+        
+        return complexity
+    
+    def to_dict(self) -> Dict[str, Any]:
+        stats = {
+            "model_id": self.model_id,
+            "samples": len(self.parameter_history),
+            "uses_rl": self.use_rl
+        }
+        if self.rl_optimizer:
+            stats["rl_stats"] = self.rl_optimizer.get_statistics()
+        return stats
+
+
+class RoutingModel:
+    """Model for task routing decisions."""
+    
+    def __init__(self, model_id: str = "routing_v1"):
+        self.model_id = model_id
+        self.routing_patterns: Dict[str, str] = {}
+    
+    def update(self, event: OutcomeEvent) -> None:
+        """Update routing patterns."""
+        if event.action_type and event.agent_name:
+            self.routing_patterns[event.action_type] = event.agent_name
+    
+    def predict_route(
+        self,
+        task_type: Optional[str] = None,
+        **kwargs
+    ) -> str:
+        """Predict routing destination."""
+        if task_type and task_type in self.routing_patterns:
+            return self.routing_patterns[task_type]
+        return "default"
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {"model_id": self.model_id, "patterns": len(self.routing_patterns)}
+
+
+class QualityPredictionModel:
+    """Model for predicting outcome quality."""
+    
+    def __init__(self, model_id: str = "quality_pred_v1"):
+        self.model_id = model_id
+        self.quality_scores: deque = deque(maxlen=100)
+    
+    def update(self, event: OutcomeEvent) -> None:
+        """Update quality predictions."""
+        if event.quality_score is not None:
+            self.quality_scores.append(event.quality_score)
+    
+    def predict_quality(
+        self,
+        agent_name: Optional[str] = None,
+        task_type: Optional[str] = None,
+        **kwargs
+    ) -> float:
+        """Predict quality score (0.0-1.0)."""
+        if self.quality_scores:
+            return float(np.mean(list(self.quality_scores)))
+        return 0.75  # Default quality score
+    
+    def to_dict(self) -> Dict[str, Any]:
+        avg_quality = float(np.mean(list(self.quality_scores))) if self.quality_scores else 0.0
+        return {"model_id": self.model_id, "avg_quality": avg_quality}
+
+
+class LatencyPredictionModel:
+    """Model for predicting execution latency."""
+    
+    def __init__(self, model_id: str = "latency_pred_v1"):
+        self.model_id = model_id
+        self.latency_history: deque = deque(maxlen=100)
+    
+    def update(self, event: OutcomeEvent) -> None:
+        """Update latency predictions."""
+        if event.latency_ms:
+            self.latency_history.append(event.latency_ms)
+    
+    def predict_latency(
+        self,
+        agent_name: Optional[str] = None,
+        task_type: Optional[str] = None,
+        **kwargs
+    ) -> float:
+        """Predict latency in milliseconds."""
+        if self.latency_history:
+            return float(np.mean(list(self.latency_history)))
+        return 1000.0  # Default latency (1 second)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        avg_latency = float(np.mean(list(self.latency_history))) if self.latency_history else 0.0
+        return {"model_id": self.model_id, "avg_latency_ms": avg_latency}
+
+
 class RealTimeModelUpdater:
     """
     Real-time model updater that subscribes to outcome events
@@ -295,7 +612,11 @@ class RealTimeModelUpdater:
         
         # Initialize models
         self.models: Dict[ModelType, Any] = {
-            ModelType.AGENT_SELECTION: AgentPerformanceModel()
+            ModelType.AGENT_SELECTION: AgentPerformanceModel(),
+            ModelType.PARAMETER_OPTIMIZATION: ParameterOptimizationModel(),
+            ModelType.ROUTING: RoutingModel(),
+            ModelType.QUALITY_PREDICTION: QualityPredictionModel(),
+            ModelType.LATENCY_PREDICTION: LatencyPredictionModel()
         }
         
         # Load existing models
@@ -500,8 +821,16 @@ class RealTimeModelUpdater:
         
         if model_type == ModelType.AGENT_SELECTION:
             return model.predict_best_agent(**kwargs)
-        
-        raise NotImplementedError(f"Prediction for {model_type} not implemented")
+        elif model_type == ModelType.PARAMETER_OPTIMIZATION:
+            return model.predict_optimal_parameters(**kwargs)
+        elif model_type == ModelType.ROUTING:
+            return model.predict_route(**kwargs)
+        elif model_type == ModelType.QUALITY_PREDICTION:
+            return model.predict_quality(**kwargs)
+        elif model_type == ModelType.LATENCY_PREDICTION:
+            return model.predict_latency(**kwargs)
+        else:
+            raise ValueError(f"Unknown model type: {model_type}")
     
     def get_metrics(self) -> Dict[str, Any]:
         """Get current learning metrics."""

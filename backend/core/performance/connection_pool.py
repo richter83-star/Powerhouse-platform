@@ -11,6 +11,8 @@ from config.settings import settings
 logger = logging.getLogger(__name__)
 
 
+from typing import Optional
+
 def create_optimized_engine(database_url: Optional[str] = None):
     """
     Create optimized SQLAlchemy engine with connection pooling.

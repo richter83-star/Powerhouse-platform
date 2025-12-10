@@ -6,7 +6,16 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+from sqlalchemy.orm import Session
+from sqlalchemy import func, and_, or_
+from database.session import get_db
+from database.models import (
+    Seller, MarketplaceListing, MarketplacePurchase, MarketplaceReview
+)
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -57,144 +66,401 @@ class SellerStats(BaseModel):
     rating: float
     active_listings: int
 
-# Mock database (replace with real database in production)
-mock_listings = []
-mock_purchases = []
-mock_sellers = {}
-
 @router.get("/marketplace/listings")
 async def get_listings(
     category: Optional[str] = None,
     item_type: Optional[str] = None,
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
-    sort_by: Optional[str] = "recent"
+    sort_by: Optional[str] = "recent",
+    page: int = 1,
+    page_size: int = 20,
+    db: Session = Depends(get_db)
 ):
     """Get marketplace listings with filters"""
-    # In production, query database
-    listings = mock_listings.copy()
-    
-    # Apply filters
-    if category:
-        listings = [l for l in listings if l["category"] == category]
-    if item_type:
-        listings = [l for l in listings if l["item_type"] == item_type]
-    if min_price:
-        listings = [l for l in listings if l["price"] >= min_price]
-    if max_price:
-        listings = [l for l in listings if l["price"] <= max_price]
-    
-    # Sort
-    if sort_by == "price_low":
-        listings.sort(key=lambda x: x["price"])
-    elif sort_by == "price_high":
-        listings.sort(key=lambda x: x["price"], reverse=True)
-    elif sort_by == "popular":
-        listings.sort(key=lambda x: x["downloads"], reverse=True)
-    elif sort_by == "rating":
-        listings.sort(key=lambda x: x["rating"], reverse=True)
-    else:  # recent
-        listings.sort(key=lambda x: x["created_at"], reverse=True)
-    
-    return {"listings": listings, "total": len(listings)}
+    try:
+        # Build query
+        query = db.query(MarketplaceListing).filter(
+            MarketplaceListing.status == "active"
+        )
+        
+        # Apply filters
+        if category:
+            query = query.filter(MarketplaceListing.category == category)
+        if item_type:
+            query = query.filter(MarketplaceListing.item_type == item_type)
+        if min_price:
+            query = query.filter(MarketplaceListing.price >= min_price)
+        if max_price:
+            query = query.filter(MarketplaceListing.price <= max_price)
+        
+        # Get total count before pagination
+        total = query.count()
+        
+        # Sort
+        if sort_by == "price_low":
+            query = query.order_by(MarketplaceListing.price.asc())
+        elif sort_by == "price_high":
+            query = query.order_by(MarketplaceListing.price.desc())
+        elif sort_by == "popular":
+            query = query.order_by(MarketplaceListing.downloads.desc())
+        elif sort_by == "rating":
+            query = query.order_by(MarketplaceListing.rating.desc())
+        else:  # recent
+            query = query.order_by(MarketplaceListing.created_at.desc())
+        
+        # Pagination
+        offset = (page - 1) * page_size
+        listings = query.offset(offset).limit(page_size).all()
+        
+        # Convert to response format
+        listings_data = []
+        for listing in listings:
+            listings_data.append({
+                "id": listing.id,
+                "seller_id": listing.seller_id,
+                "seller_name": listing.seller.display_name,
+                "title": listing.title,
+                "description": listing.description,
+                "category": listing.category,
+                "item_type": listing.item_type,
+                "price": float(listing.price),
+                "complexity_score": listing.complexity_score,
+                "preview_images": listing.preview_images or [],
+                "demo_url": listing.demo_url,
+                "downloads": listing.downloads,
+                "rating": float(listing.rating),
+                "status": listing.status,
+                "created_at": listing.created_at.isoformat() if listing.created_at else None
+            })
+        
+        return {
+            "listings": listings_data,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size
+        }
+    except Exception as e:
+        logger.error(f"Error fetching listings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch listings: {str(e)}")
 
 @router.get("/marketplace/listings/{listing_id}")
-async def get_listing(listing_id: int):
+async def get_listing(listing_id: int, db: Session = Depends(get_db)):
     """Get single listing details"""
-    listing = next((l for l in mock_listings if l["id"] == listing_id), None)
-    if not listing:
-        raise HTTPException(status_code=404, detail="Listing not found")
-    return listing
+    try:
+        listing = db.query(MarketplaceListing).filter(
+            MarketplaceListing.id == listing_id
+        ).first()
+        
+        if not listing:
+            raise HTTPException(status_code=404, detail="Listing not found")
+        
+        return {
+            "id": listing.id,
+            "seller_id": listing.seller_id,
+            "seller_name": listing.seller.display_name,
+            "title": listing.title,
+            "description": listing.description,
+            "category": listing.category,
+            "item_type": listing.item_type,
+            "price": float(listing.price),
+            "complexity_score": listing.complexity_score,
+            "preview_images": listing.preview_images or [],
+            "demo_url": listing.demo_url,
+            "config_data": listing.config_data or {},
+            "downloads": listing.downloads,
+            "rating": float(listing.rating),
+            "status": listing.status,
+            "created_at": listing.created_at.isoformat() if listing.created_at else None,
+            "updated_at": listing.updated_at.isoformat() if listing.updated_at else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching listing {listing_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch listing: {str(e)}")
 
 @router.post("/marketplace/listings")
-async def create_listing(listing: ListingCreate):
+async def create_listing(
+    listing: ListingCreate,
+    db: Session = Depends(get_db),
+    user_id: int = 1  # TODO: Get from authentication token
+):
     """Create a new marketplace listing"""
-    # In production, save to database
-    new_listing = {
-        "id": len(mock_listings) + 1,
-        "seller_id": 1,  # Get from auth
-        "seller_name": "Demo Seller",
-        **listing.model_dump(),
-        "downloads": 0,
-        "rating": 0.0,
-        "status": "active",
-        "created_at": datetime.now().isoformat()
-    }
-    mock_listings.append(new_listing)
-    return {"listing": new_listing, "message": "Listing created successfully"}
+    try:
+        # Get or create seller for user
+        seller = db.query(Seller).filter(Seller.user_id == user_id).first()
+        if not seller:
+            # Create seller if doesn't exist
+            seller = Seller(
+                user_id=user_id,
+                display_name=f"User {user_id}",  # TODO: Get from user profile
+                bio=None,
+                rating=0.00,
+                total_sales=0,
+                total_revenue=0.00
+            )
+            db.add(seller)
+            db.flush()  # Get seller.id
+        
+        # Create listing
+        new_listing = MarketplaceListing(
+            seller_id=seller.id,
+            title=listing.title,
+            description=listing.description,
+            category=listing.category,
+            item_type=listing.item_type,
+            price=listing.price,
+            complexity_score=listing.complexity_score or 1,
+            preview_images=listing.preview_images or [],
+            demo_url=listing.demo_url,
+            config_data=listing.config_data or {},
+            downloads=0,
+            rating=0.00,
+            status="active"
+        )
+        
+        db.add(new_listing)
+        db.commit()
+        db.refresh(new_listing)
+        
+        return {
+            "listing": {
+                "id": new_listing.id,
+                "seller_id": new_listing.seller_id,
+                "seller_name": seller.display_name,
+                "title": new_listing.title,
+                "description": new_listing.description,
+                "category": new_listing.category,
+                "item_type": new_listing.item_type,
+                "price": float(new_listing.price),
+                "complexity_score": new_listing.complexity_score,
+                "preview_images": new_listing.preview_images or [],
+                "demo_url": new_listing.demo_url,
+                "downloads": new_listing.downloads,
+                "rating": float(new_listing.rating),
+                "status": new_listing.status,
+                "created_at": new_listing.created_at.isoformat() if new_listing.created_at else None
+            },
+            "message": "Listing created successfully"
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating listing: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create listing: {str(e)}")
 
 @router.post("/marketplace/purchase")
-async def purchase_item(purchase: PurchaseRequest):
+async def purchase_item(
+    purchase: PurchaseRequest,
+    db: Session = Depends(get_db),
+    user_id: int = 1  # TODO: Get from authentication token
+):
     """Purchase an item from marketplace"""
-    listing = next((l for l in mock_listings if l["id"] == purchase.listing_id), None)
-    if not listing:
-        raise HTTPException(status_code=404, detail="Listing not found")
-    
-    # Calculate fees (15% platform commission)
-    total_amount = listing["price"]
-    platform_fee = total_amount * 0.15
-    seller_amount = total_amount - platform_fee
-    
-    # In production:
-    # 1. Process Stripe payment
-    # 2. Save to database
-    # 3. Transfer funds to seller
-    # 4. Send notifications
-    
-    purchase_record = {
-        "id": len(mock_purchases) + 1,
-        "listing_id": purchase.listing_id,
-        "buyer_id": 1,  # Get from auth
-        "seller_id": listing["seller_id"],
-        "amount": total_amount,
-        "platform_fee": platform_fee,
-        "seller_amount": seller_amount,
-        "status": "completed",
-        "created_at": datetime.now().isoformat()
-    }
-    mock_purchases.append(purchase_record)
-    
-    # Update listing downloads
-    listing["downloads"] += 1
-    
-    return {
-        "purchase": purchase_record,
-        "message": "Purchase completed successfully"
-    }
+    try:
+        # Get listing
+        listing = db.query(MarketplaceListing).filter(
+            MarketplaceListing.id == purchase.listing_id,
+            MarketplaceListing.status == "active"
+        ).first()
+        
+        if not listing:
+            raise HTTPException(status_code=404, detail="Listing not found")
+        
+        # Prevent self-purchase
+        if listing.seller.user_id == user_id:
+            raise HTTPException(status_code=400, detail="Cannot purchase your own listing")
+        
+        # Calculate fees (15% platform commission)
+        total_amount = float(listing.price)
+        platform_fee = total_amount * 0.15
+        seller_amount = total_amount - platform_fee
+        
+        # TODO: Process Stripe payment using purchase.payment_method_id
+        # For now, we'll create the purchase record
+        # In production:
+        # 1. Process Stripe payment
+        # 2. Transfer funds to seller
+        # 3. Send notifications
+        
+        # Create purchase record
+        purchase_record = MarketplacePurchase(
+            listing_id=purchase.listing_id,
+            buyer_id=user_id,
+            seller_id=listing.seller_id,
+            amount=total_amount,
+            platform_fee=platform_fee,
+            seller_amount=seller_amount,
+            stripe_payment_id=None,  # TODO: Set from Stripe payment
+            status="completed"  # TODO: Start as "pending" until payment confirmed
+        )
+        
+        db.add(purchase_record)
+        
+        # Update listing downloads
+        listing.downloads += 1
+        
+        # Update seller stats
+        seller = listing.seller
+        seller.total_sales += 1
+        seller.total_revenue += seller_amount
+        
+        db.commit()
+        db.refresh(purchase_record)
+        
+        return {
+            "purchase": {
+                "id": purchase_record.id,
+                "listing_id": purchase_record.listing_id,
+                "buyer_id": purchase_record.buyer_id,
+                "seller_id": purchase_record.seller_id,
+                "amount": float(purchase_record.amount),
+                "platform_fee": float(purchase_record.platform_fee),
+                "seller_amount": float(purchase_record.seller_amount),
+                "status": purchase_record.status,
+                "created_at": purchase_record.created_at.isoformat() if purchase_record.created_at else None
+            },
+            "message": "Purchase completed successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error processing purchase: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to process purchase: {str(e)}")
 
 @router.get("/marketplace/my-listings")
-async def get_my_listings():
+async def get_my_listings(
+    db: Session = Depends(get_db),
+    user_id: int = 1  # TODO: Get from authentication token
+):
     """Get current user's listings"""
-    # In production, filter by authenticated user
-    user_listings = [l for l in mock_listings if l["seller_id"] == 1]
-    return {"listings": user_listings}
+    try:
+        # Get seller for user
+        seller = db.query(Seller).filter(Seller.user_id == user_id).first()
+        if not seller:
+            return {"listings": []}
+        
+        listings = db.query(MarketplaceListing).filter(
+            MarketplaceListing.seller_id == seller.id
+        ).order_by(MarketplaceListing.created_at.desc()).all()
+        
+        listings_data = []
+        for listing in listings:
+            listings_data.append({
+                "id": listing.id,
+                "seller_id": listing.seller_id,
+                "seller_name": seller.display_name,
+                "title": listing.title,
+                "description": listing.description,
+                "category": listing.category,
+                "item_type": listing.item_type,
+                "price": float(listing.price),
+                "complexity_score": listing.complexity_score,
+                "preview_images": listing.preview_images or [],
+                "demo_url": listing.demo_url,
+                "downloads": listing.downloads,
+                "rating": float(listing.rating),
+                "status": listing.status,
+                "created_at": listing.created_at.isoformat() if listing.created_at else None
+            })
+        
+        return {"listings": listings_data}
+    except Exception as e:
+        logger.error(f"Error fetching user listings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch listings: {str(e)}")
 
 @router.get("/marketplace/my-purchases")
-async def get_my_purchases():
+async def get_my_purchases(
+    db: Session = Depends(get_db),
+    user_id: int = 1  # TODO: Get from authentication token
+):
     """Get current user's purchases"""
-    # In production, filter by authenticated user
-    user_purchases = [p for p in mock_purchases if p["buyer_id"] == 1]
-    return {"purchases": user_purchases}
+    try:
+        purchases = db.query(MarketplacePurchase).filter(
+            MarketplacePurchase.buyer_id == user_id
+        ).order_by(MarketplacePurchase.created_at.desc()).all()
+        
+        purchases_data = []
+        for purchase in purchases:
+            purchases_data.append({
+                "id": purchase.id,
+                "listing_id": purchase.listing_id,
+                "listing_title": purchase.listing.title,
+                "seller_id": purchase.seller_id,
+                "seller_name": purchase.seller.display_name,
+                "amount": float(purchase.amount),
+                "platform_fee": float(purchase.platform_fee),
+                "seller_amount": float(purchase.seller_amount),
+                "status": purchase.status,
+                "created_at": purchase.created_at.isoformat() if purchase.created_at else None
+            })
+        
+        return {"purchases": purchases_data}
+    except Exception as e:
+        logger.error(f"Error fetching user purchases: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch purchases: {str(e)}")
 
 @router.get("/marketplace/seller-stats")
-async def get_seller_stats():
+async def get_seller_stats(
+    db: Session = Depends(get_db),
+    user_id: int = 1  # TODO: Get from authentication token
+):
     """Get seller statistics"""
-    # In production, calculate from database
-    user_purchases = [p for p in mock_purchases if p["seller_id"] == 1]
-    user_listings = [l for l in mock_listings if l["seller_id"] == 1]
-    
-    total_revenue = sum(p["seller_amount"] for p in user_purchases)
-    
-    return {
-        "total_sales": len(user_purchases),
-        "total_revenue": total_revenue,
-        "rating": 4.8,
-        "active_listings": len([l for l in user_listings if l["status"] == "active"])
-    }
+    try:
+        seller = db.query(Seller).filter(Seller.user_id == user_id).first()
+        if not seller:
+            return {
+                "total_sales": 0,
+                "total_revenue": 0.0,
+                "rating": 0.0,
+                "active_listings": 0
+            }
+        
+        active_listings = db.query(MarketplaceListing).filter(
+            and_(
+                MarketplaceListing.seller_id == seller.id,
+                MarketplaceListing.status == "active"
+            )
+        ).count()
+        
+        return {
+            "total_sales": seller.total_sales,
+            "total_revenue": float(seller.total_revenue),
+            "rating": float(seller.rating),
+            "active_listings": active_listings
+        }
+    except Exception as e:
+        logger.error(f"Error fetching seller stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch seller stats: {str(e)}")
 
 @router.delete("/marketplace/listings/{listing_id}")
-async def delete_listing(listing_id: int):
-    """Delete a listing"""
-    global mock_listings
-    mock_listings = [l for l in mock_listings if l["id"] != listing_id]
-    return {"message": "Listing deleted successfully"}
+async def delete_listing(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = 1  # TODO: Get from authentication token
+):
+    """Delete a listing (soft delete by setting status to 'removed')"""
+    try:
+        listing = db.query(MarketplaceListing).filter(
+            MarketplaceListing.id == listing_id
+        ).first()
+        
+        if not listing:
+            raise HTTPException(status_code=404, detail="Listing not found")
+        
+        # Verify ownership
+        if listing.seller.user_id != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized to delete this listing")
+        
+        # Soft delete
+        listing.status = "removed"
+        db.commit()
+        
+        return {"message": "Listing deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting listing: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete listing: {str(e)}")

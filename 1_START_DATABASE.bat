@@ -10,6 +10,6 @@ echo.
 docker-compose up -d
 timeout /t 5 /nobreak >nul
 echo.
-echo [OK] Database is running on port 5433
+echo [OK] Database is running on port 5434
 echo.
 pause

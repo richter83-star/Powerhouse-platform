@@ -62,7 +62,13 @@ def get_engine():
                 max_overflow=20  # Increased from 10
             )
         
-        logger.info(f"Database engine created: {settings.database_url.split('://')[0]}")
+        db_type = "unknown"
+        if settings.database_url:
+            try:
+                db_type = settings.database_url.split('://')[0]
+            except (AttributeError, IndexError):
+                pass
+        logger.info(f"Database engine created: {db_type}")
     
     return _engine
 

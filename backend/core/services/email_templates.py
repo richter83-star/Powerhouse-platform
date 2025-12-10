@@ -1,7 +1,7 @@
 """
 Email templates for transactional emails.
 """
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
 class EmailTemplates:

@@ -136,7 +136,7 @@ The Electron app:
 - Solution: Start Docker Desktop first, then launch Powerhouse
 
 **Error**: Services timeout
-- Cause: Ports 3000, 8001, or 5433 already in use
+- Cause: Ports 3000, 8001, or 5434 already in use
 - Solution: Close other apps using these ports
 
 ### Installation Issues
@@ -239,7 +239,7 @@ A: Yes. Put a shortcut in:
 `C:\Users\YourName\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup`
 
 **Q: Can I run multiple instances?**
-A: No. Ports 3000/8001/5433 can only be used once.
+A: No. Ports 3000/8001/5434 can only be used once.
 
 **Q: How do I update the app?**
 A: Build a new installer and reinstall. User data is preserved.
@@ -258,7 +258,7 @@ A: Not with this Windows build. You'd need separate Mac/Linux builds.
 
 If you encounter issues:
 1. Check Docker Desktop is running
-2. Check ports 3000, 8001, 5433 are free
+2. Check ports 3000, 8001, 5434 are free
 3. Try the batch files first to debug
 4. Check logs in terminal window
 

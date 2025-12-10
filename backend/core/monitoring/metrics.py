@@ -144,6 +144,82 @@ auth_failures_total = Counter(
     ['reason']
 )
 
+# Business Metrics - Tenant & Usage
+tenant_active_users = Gauge(
+    'tenant_active_users',
+    'Number of active users per tenant',
+    ['tenant_id']
+)
+
+tenant_workflows_active = Gauge(
+    'tenant_workflows_active',
+    'Number of active workflows per tenant',
+    ['tenant_id']
+)
+
+tenant_api_usage_total = Counter(
+    'tenant_api_usage_total',
+    'Total API usage per tenant',
+    ['tenant_id', 'endpoint']
+)
+
+tenant_cost_total = Counter(
+    'tenant_cost_total',
+    'Total cost per tenant (USD)',
+    ['tenant_id']
+)
+
+# Business Metrics - Marketplace
+marketplace_listings_total = Gauge(
+    'marketplace_listings_total',
+    'Total marketplace listings',
+    ['category', 'status']
+)
+
+marketplace_purchases_total = Counter(
+    'marketplace_purchases_total',
+    'Total marketplace purchases',
+    ['category', 'status']
+)
+
+marketplace_revenue_total = Counter(
+    'marketplace_revenue_total',
+    'Total marketplace revenue (USD)',
+    ['category']
+)
+
+# Business Metrics - Subscriptions
+subscriptions_active = Gauge(
+    'subscriptions_active',
+    'Number of active subscriptions',
+    ['plan_id', 'status']
+)
+
+subscriptions_revenue_monthly = Gauge(
+    'subscriptions_revenue_monthly',
+    'Monthly recurring revenue (USD)',
+    ['plan_id']
+)
+
+# Business Metrics - SLA
+sla_uptime_percentage = Gauge(
+    'sla_uptime_percentage',
+    'SLA uptime percentage',
+    ['tenant_id', 'period']
+)
+
+sla_response_time_p95 = Gauge(
+    'sla_response_time_p95',
+    'SLA 95th percentile response time (ms)',
+    ['tenant_id']
+)
+
+sla_breaches_total = Counter(
+    'sla_breaches_total',
+    'Total SLA breaches',
+    ['tenant_id', 'sla_type']
+)
+
 
 def track_request_metrics(func):
     """Decorator to track HTTP request metrics."""

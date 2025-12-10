@@ -73,7 +73,7 @@ echo [INFO] Starting backend server on port 8001...
 echo       Health check: http://localhost:8001/health
 echo.
 
-uvicorn ph_server:app --host 0.0.0.0 --port 8001 --reload
+uvicorn api.main:app --host 0.0.0.0 --port 8001 --reload
 
 echo.
 echo Backend server stopped.

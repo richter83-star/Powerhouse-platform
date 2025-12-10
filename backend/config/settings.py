@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # Database Connection
     # =====================================================================================
     db_host: str = "localhost"
-    db_port: int = 5433
+    db_port: int = 5434
     db_user: str = "postgres"
     db_password: str = "postgres"
     db_name: str = "powerhouse"
@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
     redis_password: Optional[str] = None
+    redis_url: Optional[str] = Field(
+        default="redis://localhost:6379/0",
+        description="Full Redis URL"
+    )
 
     # =====================================================================================
     # CORS

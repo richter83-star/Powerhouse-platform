@@ -1,0 +1,137 @@
+{
+  "dashboard": {
+    "title": "Powerhouse Main Dashboard",
+    "tags": ["powerhouse", "production"],
+    "timezone": "browser",
+    "schemaVersion": 27,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "HTTP Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{method}} {{endpoint}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "HTTP Request Duration (p95)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{endpoint}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Database Connections",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "db_connections_active",
+            "legendFormat": "Active"
+          },
+          {
+            "expr": "db_connections_idle",
+            "legendFormat": "Idle"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Workflows Completed",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(workflows_completed_total[5m])",
+            "legendFormat": "{{workflow_type}} - {{status}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(errors_total[5m])",
+            "legendFormat": "{{error_type}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "System CPU Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "system_cpu_usage_percent",
+            "legendFormat": "CPU Usage %"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 7,
+        "title": "System Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "system_memory_usage_bytes / 1024 / 1024 / 1024",
+            "legendFormat": "Memory Usage GB"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "Active Subscriptions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(subscriptions_active)",
+            "legendFormat": "Total"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 22}
+      },
+      {
+        "id": 9,
+        "title": "Monthly Recurring Revenue",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(subscriptions_revenue_monthly)",
+            "legendFormat": "MRR"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 22}
+      },
+      {
+        "id": 10,
+        "title": "SLA Uptime",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sla_uptime_percentage",
+            "legendFormat": "{{tenant_id}}"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 22}
+      }
+    ]
+  }
+}
+

@@ -158,13 +158,20 @@ async def refresh_token_endpoint(
 ):
     """
     Refresh access token using refresh token.
+    
+    Implements refresh token rotation for security:
+    - Old refresh token is revoked
+    - New refresh token is issued
+    - Prevents token reuse attacks
     """
+    from core.security.jwt_auth import auth_manager
+    
     user_service = UserService(db)
     
     # Get refresh token from database
     refresh_token_obj = user_service.get_refresh_token(request.refresh_token)
     
-    if not refresh_token_obj:
+    if not refresh_token_obj or refresh_token_obj.is_revoked:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token"
@@ -173,14 +180,37 @@ async def refresh_token_endpoint(
     user_id = refresh_token_obj.user_id
     tenant_id = refresh_token_obj.tenant_id
     
+    # Verify token using JWT auth manager
+    payload = auth_manager.verify_token(request.refresh_token)
+    if not payload or payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token"
+        )
+    
     # Get user's current roles
     roles = user_service.get_user_roles(user_id, tenant_id)
     
-    # Generate new access token
-    access_token = create_access_token(
+    # Generate new tokens with refresh token rotation
+    token_result = auth_manager.refresh_access_token(
+        refresh_token=request.refresh_token,
+        roles=roles,
+        rotate_refresh_token=True  # Enable rotation for security
+    )
+    
+    if not token_result:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Failed to refresh token"
+        )
+    
+    # Revoke old refresh token in database
+    user_service.revoke_refresh_token(request.refresh_token)
+    
+    # Create new refresh token in database
+    new_refresh_token_obj = user_service.create_refresh_token(
         user_id=user_id,
-        tenant_id=tenant_id,
-        roles=roles
+        tenant_id=tenant_id
     )
     
     # Log token refresh
@@ -195,8 +225,8 @@ async def refresh_token_endpoint(
     )
     
     return LoginResponse(
-        access_token=access_token,
-        refresh_token=request.refresh_token
+        access_token=token_result["access_token"],
+        refresh_token=token_result.get("refresh_token", new_refresh_token_obj.token)
     )
 
 @router.post("/verify")
@@ -225,11 +255,18 @@ async def verify_token_endpoint(
 @router.post("/logout")
 async def logout(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    logout_all_devices: bool = False
 ):
     """
-    Logout user and revoke refresh token.
+    Logout user and revoke tokens.
+    
+    Args:
+        logout_all_devices: If True, revoke all tokens for user (logout from all devices)
+                          If False, revoke only the current access token
     """
+    from core.security.jwt_auth import auth_manager
+    
     token = credentials.credentials
     payload = verify_token(token)
     
@@ -237,10 +274,19 @@ async def logout(
         user_id = payload.get("sub")
         tenant_id = payload.get("tenant_id")
         
-        # Revoke all refresh tokens for this user (logout from all devices)
-        # Or you could revoke just the current token if you track it
+        # Revoke the current access token
+        auth_manager.revoke_token(token)
+        
         user_service = UserService(db)
-        user_service.revoke_all_user_tokens(user_id)
+        
+        if logout_all_devices:
+            # Revoke all refresh tokens for this user (logout from all devices)
+            user_service.revoke_all_user_tokens(user_id)
+            auth_manager.revoke_all_user_tokens(user_id, tenant_id)
+        else:
+            # Just revoke the current access token (already done above)
+            # Optionally, can also revoke the refresh token if provided
+            pass
         
         # Log logout
         await audit_logger.log(
@@ -250,7 +296,8 @@ async def logout(
             resource_type="auth",
             resource_id=user_id,
             action="logout",
-            outcome="success"
+            outcome="success",
+            metadata={"logout_all_devices": logout_all_devices}
         )
     
     return {"message": "Successfully logged out"}

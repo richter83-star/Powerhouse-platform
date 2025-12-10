@@ -6,9 +6,10 @@ SQLAlchemy database models.
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import (
-    Column, String, Integer, DateTime, ForeignKey, Text, JSON, Enum, Float
+    Column, String, Integer, DateTime, ForeignKey, Text, JSON, Enum, Float, Boolean, ARRAY, Numeric
 )
 from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
 import enum
 
 Base = declarative_base()
@@ -437,3 +438,261 @@ class PasswordReset(Base):
     
     def __repr__(self):
         return f"<PasswordReset(id={self.id}, user_id={self.user_id}, used={self.is_used})>"
+
+
+class LicenseStatus(str, enum.Enum):
+    """License status enumeration"""
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+    TRIAL = "trial"
+    GRACE_PERIOD = "grace_period"
+    INACTIVE = "inactive"
+
+
+class LicenseType(str, enum.Enum):
+    """License type enumeration"""
+    TRIAL = "trial"
+    STANDARD = "standard"
+    ENTERPRISE = "enterprise"
+    PERPETUAL = "perpetual"
+
+
+class License(Base):
+    """
+    License model for license key management.
+    
+    Stores license keys, activation status, expiration, and device binding.
+    """
+    __tablename__ = "licenses"
+    
+    id = Column(String(36), primary_key=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)  # Nullable for system-wide licenses
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    
+    # License key
+    license_key = Column(String(255), unique=True, nullable=False, index=True)
+    license_type = Column(Enum(LicenseType), default=LicenseType.STANDARD, nullable=False)
+    
+    # Status
+    status = Column(Enum(LicenseStatus), default=LicenseStatus.INACTIVE, nullable=False, index=True)
+    
+    # Dates
+    issued_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    activated_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True, index=True)
+    trial_ends_at = Column(DateTime, nullable=True)  # For trial licenses
+    grace_period_ends_at = Column(DateTime, nullable=True)  # Grace period after expiration
+    
+    # Device binding
+    hardware_fingerprint = Column(String(255), nullable=True, index=True)  # Device identifier
+    max_devices = Column(Integer, default=1, nullable=False)  # Multi-seat support
+    device_count = Column(Integer, default=0, nullable=False)  # Current device count
+    
+    # License details
+    seats = Column(Integer, default=1, nullable=False)  # Number of user seats
+    features = Column(JSON, default=list, nullable=False)  # Enabled features
+    license_metadata = Column("metadata", JSON, default=dict, nullable=False)  # Additional license metadata (renamed to avoid SQLAlchemy conflict)
+    
+    # Revocation
+    revoked_at = Column(DateTime, nullable=True)
+    revocation_reason = Column(Text, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    tenant = relationship("Tenant")
+    user = relationship("User")
+    activations = relationship("LicenseActivation", back_populates="license", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<License(id={self.id}, key={self.license_key[:8]}..., status={self.status})>"
+
+
+class LicenseActivation(Base):
+    """
+    License activation record.
+    
+    Tracks each device activation for a license (multi-seat support).
+    """
+    __tablename__ = "license_activations"
+    
+    id = Column(String(36), primary_key=True)
+    license_id = Column(String(36), ForeignKey("licenses.id"), nullable=False, index=True)
+    
+    # Device information
+    hardware_fingerprint = Column(String(255), nullable=False, index=True)
+    device_name = Column(String(255), nullable=True)
+    device_info = Column(JSON, default=dict, nullable=False)  # OS, CPU, etc.
+    
+    # Activation details
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    
+    # Status
+    is_active = Column(Integer, default=1, nullable=False)  # 1=active, 0=deactivated
+    
+    # Timestamps
+    activated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    deactivated_at = Column(DateTime, nullable=True)
+    last_validated_at = Column(DateTime, nullable=True)  # Last license check
+    
+    # Relationships
+    license = relationship("License", back_populates="activations")
+    
+    def __repr__(self):
+        return f"<LicenseActivation(id={self.id}, license_id={self.license_id}, active={self.is_active})>"
+
+
+class OnboardingProgress(Base):
+    """
+    Onboarding progress tracking model.
+    
+    Tracks user's progress through the onboarding flow.
+    """
+    __tablename__ = "onboarding_progress"
+    
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    
+    # Progress tracking
+    current_step = Column(String(100), nullable=False, default="welcome")
+    completed_steps = Column(JSON, default=list, nullable=False)  # List of completed step IDs
+    skipped = Column(Boolean, default=False, nullable=False)
+    
+    # User preferences
+    use_case = Column(String(100), nullable=True)  # Selected use case
+    preferences = Column(JSON, default=dict, nullable=False)  # Additional preferences
+    
+    # Sample data created
+    sample_workflow_created = Column(Boolean, default=False, nullable=False)
+    sample_agent_created = Column(Boolean, default=False, nullable=False)
+    first_run_completed = Column(Boolean, default=False, nullable=False)
+    
+    # Timestamps
+    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User")
+    tenant = relationship("Tenant")
+    
+    def __repr__(self):
+        return f"<OnboardingProgress(user_id={self.user_id}, step={self.current_step}, completed={self.completed_at is not None})>"
+
+
+class Seller(Base):
+    """
+    Seller model for marketplace.
+    
+    Represents a user who sells items on the marketplace.
+    """
+    __tablename__ = "sellers"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    stripe_account_id = Column(String(255), nullable=True)
+    display_name = Column(String(255), nullable=False)
+    bio = Column(Text, nullable=True)
+    rating = Column(Float, default=0.00, nullable=False)
+    total_sales = Column(Integer, default=0, nullable=False)
+    total_revenue = Column(Float, default=0.00, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    listings = relationship("MarketplaceListing", back_populates="seller", cascade="all, delete-orphan")
+    purchases = relationship("MarketplacePurchase", back_populates="seller", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<Seller(id={self.id}, display_name={self.display_name})>"
+
+
+class MarketplaceListing(Base):
+    """
+    Marketplace listing model.
+    
+    Represents an item (app, agent, workflow) for sale on the marketplace.
+    """
+    __tablename__ = "marketplace_listings"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    seller_id = Column(Integer, ForeignKey("sellers.id"), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String(50), nullable=False, index=True)
+    item_type = Column(String(50), nullable=False)
+    price = Column(Float, nullable=False)
+    complexity_score = Column(Integer, default=1, nullable=False)
+    preview_images = Column(JSON, default=list, nullable=True)  # Store as JSON array
+    demo_url = Column(String(500), nullable=True)
+    config_data = Column(JSON, default=dict, nullable=True)
+    downloads = Column(Integer, default=0, nullable=False)
+    rating = Column(Float, default=0.00, nullable=False)
+    status = Column(String(20), default="active", nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    seller = relationship("Seller", back_populates="listings")
+    purchases = relationship("MarketplacePurchase", back_populates="listing", cascade="all, delete-orphan")
+    reviews = relationship("MarketplaceReview", back_populates="listing", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<MarketplaceListing(id={self.id}, title={self.title}, status={self.status})>"
+
+
+class MarketplacePurchase(Base):
+    """
+    Marketplace purchase/transaction model.
+    
+    Records a purchase of an item from the marketplace.
+    """
+    __tablename__ = "marketplace_purchases"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    listing_id = Column(Integer, ForeignKey("marketplace_listings.id"), nullable=False, index=True)
+    buyer_id = Column(Integer, nullable=False, index=True)
+    seller_id = Column(Integer, ForeignKey("sellers.id"), nullable=False, index=True)
+    amount = Column(Float, nullable=False)
+    platform_fee = Column(Float, nullable=False)
+    seller_amount = Column(Float, nullable=False)
+    stripe_payment_id = Column(String(255), nullable=True)
+    status = Column(String(50), default="pending", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Relationships
+    listing = relationship("MarketplaceListing", back_populates="purchases")
+    seller = relationship("Seller", back_populates="purchases")
+    reviews = relationship("MarketplaceReview", back_populates="purchase", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<MarketplacePurchase(id={self.id}, listing_id={self.listing_id}, status={self.status})>"
+
+
+class MarketplaceReview(Base):
+    """
+    Marketplace review model.
+    
+    Reviews and ratings for marketplace listings.
+    """
+    __tablename__ = "marketplace_reviews"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    listing_id = Column(Integer, ForeignKey("marketplace_listings.id"), nullable=False, index=True)
+    purchase_id = Column(Integer, ForeignKey("marketplace_purchases.id"), nullable=False, index=True)
+    buyer_id = Column(Integer, nullable=False, index=True)
+    rating = Column(Integer, nullable=False)
+    review_text = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Relationships
+    listing = relationship("MarketplaceListing", back_populates="reviews")
+    purchase = relationship("MarketplacePurchase", back_populates="reviews")
+    
+    def __repr__(self):
+        return f"<MarketplaceReview(id={self.id}, listing_id={self.listing_id}, rating={self.rating})>"

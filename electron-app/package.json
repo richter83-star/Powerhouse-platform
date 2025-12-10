@@ -7,46 +7,99 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "dist-win": "electron-builder --win --x64"
+    "dist-win": "electron-builder --win --x64",
+    "dist-win-portable": "electron-builder --win --x64 --portable",
+    "dist-win-signed": "electron-builder --win --x64 --publish never"
   },
   "build": {
     "appId": "com.powerhouse.desktop",
     "productName": "Powerhouse",
+    "copyright": "Copyright © 2024 Powerhouse AI",
     "win": {
-      "target": ["nsis"],
-      "icon": "icon.ico"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "publisherName": "Powerhouse AI",
+      "verifyUpdateCodeSignature": true
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Powerhouse"
+      "shortcutName": "Powerhouse",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "license": "LICENSE.txt",
+      "warningsAsErrors": false,
+      "artifactName": "${productName} Setup ${version}.${ext}",
+      "installerLanguages": ["en_US"],
+      "displayLanguageSelector": false
     },
     "files": [
       "main.js",
-      "package.json"
+      "package.json",
+      "auto-updater.js",
+      "system-check.js"
     ],
     "extraResources": [
       {
         "from": "../backend",
-        "to": "backend"
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc",
+          "!**/venv/**",
+          "!**/.git/**",
+          "!**/tests/**",
+          "!**/*.log",
+          "!**/.pytest_cache/**"
+        ]
       },
       {
-        "from": "../frontend",
-        "to": "frontend"
+        "from": "../frontend/app",
+        "to": "frontend/app",
+        "filter": [
+          "**/*",
+          "!**/node_modules/**",
+          "!**/.next/**",
+          "!**/.git/**",
+          "!**/*.log",
+          "!**/.env.local",
+          "!**/.env.development.local"
+        ]
       },
       {
         "from": "../docker-compose.yml",
         "to": "docker-compose.yml"
+      },
+      {
+        "from": "LICENSE.txt",
+        "to": "LICENSE.txt"
       }
     ],
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "compression": "maximum",
+    "asar": false,
+    "publish": {
+      "provider": "generic",
+      "url": "https://powerhouse.ai/updates"
     }
   },
-  "author": "Powerhouse Team",
-  "license": "MIT",
+  "author": "Powerhouse AI",
+  "license": "PROPRIETARY",
   "devDependencies": {
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1"

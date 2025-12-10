@@ -1,0 +1,166 @@
+# =============================================================================
+# Production Docker Compose Configuration
+# =============================================================================
+# This file demonstrates production-ready Docker Compose configuration
+# Copy this file and customize for your production environment
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# =============================================================================
+
+version: "3.8"
+
+services:
+  # PostgreSQL Database - Production Configuration
+  postgres:
+    environment:
+      # IMPORTANT: Set these via environment variables or secrets management
+      # Never commit actual passwords to version control
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Enable SSL for production
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=en_US.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Optional: Mount SSL certificates
+      # - ./ssl/postgres:/var/lib/postgresql/ssl:ro
+    # Production: Remove port mapping and use internal network only
+    # ports:
+    #   - "5434:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    # Enable logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis - Production Configuration
+  redis:
+    # Production: Remove port mapping and use internal network only
+    # ports:
+    #   - "6379:6379"
+    command: >
+      sh -c "
+      redis-server
+      --appendonly yes
+      --requirepass $$REDIS_PASSWORD
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      "
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Backend API - Production Configuration
+  backend:
+    environment:
+      # Set these via environment variables
+      - DEBUG=False
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      - ENABLE_FILE_LOGGING=True
+      # Database connection (uses internal Docker network)
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=${POSTGRES_DB}
+      # Redis connection (uses internal Docker network)
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    # Production: Use multiple workers
+    command: >
+      python -m uvicorn api.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
+      --access-log
+      --log-level info
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '2.0'
+          memory: 2G
+      replicas: 2  # Run 2 backend instances for high availability
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    # Health checks with more strict settings
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # Frontend - Production Configuration
+  frontend:
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8001}
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# =============================================================================
+# Production Environment Variables Required
+# =============================================================================
+# Create a .env.prod file (DO NOT commit to version control) with:
+#
+# POSTGRES_USER=powerhouse_user
+# POSTGRES_PASSWORD=<generate-secure-password>
+# POSTGRES_DB=powerhouse_prod
+# REDIS_PASSWORD=<generate-secure-password>
+# NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+#
+# Generate secure passwords:
+#   openssl rand -base64 32
+#
+# =============================================================================
+

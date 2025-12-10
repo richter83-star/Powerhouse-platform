@@ -8,7 +8,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Request, Depends, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -68,7 +68,7 @@ class PlanResponse(BaseModel):
 
 
 # Helper function to get user context
-def get_user_context(request: Request) -> tuple[str, str]:
+def get_user_context(request: Request) -> Tuple[str, str]:
     """Extract user_id and tenant_id from request state"""
     user_id = getattr(request.state, 'user_id', None)
     tenant_id = getattr(request.state, 'tenant_id', None)
@@ -547,8 +547,23 @@ async def preview_plan_change(
             new_price_id=new_price_id
         )
         
+        # Get current plan ID
+        result_plan = db.execute(
+            text("""
+                SELECT plan_id
+                FROM subscriptions
+                WHERE tenant_id = :tenant_id AND user_id = :user_id
+                AND status = 'active'
+                ORDER BY created_at DESC
+                LIMIT 1
+            """),
+            {"tenant_id": tenant_id, "user_id": user_id}
+        )
+        row_plan = result_plan.fetchone()
+        current_plan_id = row_plan[0] if row_plan else None
+        
         return {
-            "current_plan": new_plan_id,
+            "current_plan": current_plan_id,
             "new_plan": new_plan_id,
             "proration": proration
         }

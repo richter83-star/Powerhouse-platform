@@ -106,20 +106,44 @@ async def get_current_user_from_token(
     """
     Get current user from JWT token.
     
-    This is a simplified implementation for demo purposes.
-    In production, you would query the database for user details.
+    Queries the database for user details based on token claims.
     """
     token = credentials.credentials
     token_data = decode_access_token(token)
     
-    # In production, fetch user from database
-    # For demo, create a user object from token data
+    # Fetch user from database
+    from database.session import get_db
+    from database.models import User as DBUser
+    db = next(get_db())
+    
+    # Try to find user by email (username in token is typically email)
+    user_db = None
+    if token_data.username:
+        user_db = db.query(DBUser).filter(DBUser.email == token_data.username).first()
+    
+    # If not found by email, try by ID if username looks like a UUID
+    if not user_db and token_data.username:
+        try:
+            import uuid
+            uuid.UUID(token_data.username)  # Check if it's a UUID
+            user_db = db.query(DBUser).filter(DBUser.id == token_data.username).first()
+        except (ValueError, AttributeError):
+            pass
+    
+    db.close()
+    
+    if not user_db:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Map database user to API user model
     user = User(
-        username=token_data.username,
-        email=f"{token_data.username}@example.com",
+        username=user_db.email.split('@')[0] if user_db.email else token_data.username,
+        email=user_db.email,
         tenant_id=token_data.tenant_id or "default-tenant",
-        disabled=False
+        disabled=user_db.disabled if hasattr(user_db, 'disabled') else False
     )
+    
+    db.close()
     
     if user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
@@ -173,13 +197,26 @@ async def get_current_user(
     if token_user:
         return token_user
     
-    # If API key authentication succeeded, create a default user
+    # If API key authentication succeeded, look up or create API user
     if api_key:
-        return User(
-            username="api_user",
-            email="api@example.com",
-            tenant_id="api-tenant",
-            disabled=False
+        from database.session import get_db
+        from database.models import User as DBUser
+        db = next(get_db())
+        # Try to find API user
+        user_db = db.query(DBUser).filter(DBUser.email == "api@system.local").first()
+        db.close()
+        
+        if user_db:
+            return User(
+                username="api_user",
+                email=user_db.email,
+                tenant_id="api-tenant",
+                disabled=False
+            )
+        # If no API user exists, raise error
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API user not configured"
         )
     
     raise HTTPException(
@@ -194,21 +231,43 @@ async def get_current_user(
 
 def authenticate_user(username: str, password: str) -> Optional[User]:
     """
-    Authenticate a user (demo implementation).
+    Authenticate a user by querying the database and verifying password hash.
     
-    In production, this would query the database and verify password hash.
-    For demo purposes, accepts any username with password "demo123".
+    Args:
+        username: User email or username
+        password: Plain text password
+        
+    Returns:
+        User object if authenticated, None otherwise
     """
-    # Demo: Accept any username with password "demo123"
-    if password == "demo123":
-        return User(
-            username=username,
-            email=f"{username}@example.com",
-            tenant_id=f"tenant-{username}",
-            disabled=False
-        )
+    from database.session import get_db
+    from database.models import User as DBUser
+    from core.security.user_service import UserService
     
-    return None
+    db = next(get_db())
+    user_service = UserService(db)
+    
+    # Try to find user by email
+    user_db = db.query(DBUser).filter(DBUser.email == username).first()
+    if not user_db:
+        db.close()
+        return None
+    
+    # Verify password
+    if not user_service.verify_password(password, user_db.password_hash):
+        db.close()
+        return None
+    
+    # Map to API user model
+    user = User(
+        username=user_db.email.split('@')[0] if user_db.email else username,
+        email=user_db.email,
+        tenant_id=getattr(user_db, 'tenant_id', 'default-tenant'),
+        disabled=getattr(user_db, 'disabled', False)
+    )
+    
+    db.close()
+    return user
 
 
 # ============================================================================
@@ -228,19 +287,37 @@ async def get_optional_user(
     try:
         if credentials:
             token_data = decode_access_token(credentials.credentials)
-            return User(
-                username=token_data.username,
-                email=f"{token_data.username}@example.com",
-                tenant_id=token_data.tenant_id or "default-tenant",
-                disabled=False
-            )
+            from database.session import get_db
+            from database.models import User as DBUser
+            db = next(get_db())
+            user_db = db.query(DBUser).filter(DBUser.id == token_data.user_id).first()
+            db.close()
+            
+            if user_db:
+                return User(
+                    username=user_db.email.split('@')[0] if user_db.email else token_data.username,
+                    email=user_db.email,
+                    tenant_id=token_data.tenant_id or "default-tenant",
+                    disabled=getattr(user_db, 'disabled', False)
+                )
         elif api_key and api_key in settings.api_keys:
-            return User(
-                username="api_user",
-                email="api@example.com",
-                tenant_id="api-tenant",
-                disabled=False
-            )
+            # For API key users, create a system user
+            from database.session import get_db
+            from database.models import User as DBUser
+            db = next(get_db())
+            # Try to find or create API user
+            user_db = db.query(DBUser).filter(DBUser.email == "api@system.local").first()
+            db.close()
+            
+            if user_db:
+                return User(
+                    username="api_user",
+                    email=user_db.email,
+                    tenant_id="api-tenant",
+                    disabled=False
+                )
+            # If no API user found, return None (will be handled by caller)
+            return None
     except:
         pass
     

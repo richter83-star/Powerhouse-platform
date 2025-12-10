@@ -1,14 +1,14 @@
-# Core FastAPI dependencies - LATEST STABLE VERSIONS
-fastapi==0.115.5
-uvicorn[standard]==0.32.0
-pydantic==2.9.2
-pydantic-settings==2.6.1
+# Core FastAPI dependencies - COMPATIBLE VERSIONS
+fastapi==0.118.0  # Compatible with google-adk
+uvicorn[standard]>=0.34.0
+pydantic>=2.11.0
+pydantic-settings>=2.6.1
 
 # Authentication & Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
-PyJWT==2.8.0
+python-multipart>=0.0.9
+PyJWT[crypto]>=2.10.1
 cryptography==41.0.7
 
 # Database (Windows-compatible versions)
@@ -31,17 +31,22 @@ kafka-python>=2.0.2
 
 # Machine Learning
 numpy>=1.24.0
+scikit-learn>=1.3.0  # For ML models and preprocessing
+torch>=2.0.0  # PyTorch for neural networks (optional but recommended)
 
 # Distributed Systems & Message Queue
 redis==5.0.1
 nats-py==2.6.0
 
-# Observability & Telemetry
-opentelemetry-api==1.21.0
-opentelemetry-sdk==1.21.0
-opentelemetry-instrumentation-fastapi==0.42b0
-opentelemetry-instrumentation-requests==0.42b0
-opentelemetry-exporter-prometheus==0.42b0
+# Observability & Telemetry - COMPATIBLE VERSIONS
+opentelemetry-api==1.37.0  # Required by google-adk
+opentelemetry-sdk==1.37.0  # Must match API version
+opentelemetry-instrumentation-fastapi==0.58b0  # Compatible with SDK 1.37.0
+opentelemetry-instrumentation-asgi==0.58b0
+opentelemetry-instrumentation-requests==0.58b0
+opentelemetry-exporter-prometheus>=0.42b0
+opentelemetry-semantic-conventions==0.58b0  # Must match instrumentation versions
+opentelemetry-util-http==0.58b0
 prometheus-client==0.19.0
 
 # Monitoring
@@ -68,9 +73,31 @@ boto3>=1.34.0  # AWS SES support (optional)
 # Payment Processing
 stripe>=7.0.0  # Stripe API for payment processing and subscriptions
 
+# SAML Authentication (optional, for enterprise SSO)
+python3-saml>=1.15.0  # SAML 2.0 authentication library
+
+# OAuth Authentication (optional, for SSO)
+authlib>=1.2.0  # OAuth 2.0 and OpenID Connect library
+
 # Testing
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
 pytest-mock>=3.11.1
 httpx>=0.27.2  # For TestClient
+
+# Causal Reasoning
+networkx>=3.0
+pgmpy>=0.1.19  # Optional, for advanced causal discovery
+pandas>=2.0.0  # For pgmpy data handling
+
+# Swarm Intelligence
+scipy>=1.10.0  # Optimization algorithms
+
+# Program Synthesis
+restrictedpython>=5.0  # Optional, for safer code execution
+
+# Multi-Modal Learning
+transformers>=4.30.0  # Vision-language models
+Pillow>=10.0.0  # Image processing
+openai-whisper>=20230314  # Audio processing (optional)

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+// Progress component - using div-based progress bar
 import { CheckCircle2, ArrowRight, ArrowLeft, Sparkles, Zap, Shield, BarChart3 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -75,10 +75,24 @@ export default function OnboardingPage() {
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
 
   const handleNext = async () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+    const stepId = STEPS[currentStep].id;
+    
+    // Update step progress
+    try {
+      await fetch(`${apiUrl}/api/onboarding/step`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step_id: stepId, completed: true })
+      });
+    } catch (error) {
+      console.error("Failed to update step:", error);
+    }
+    
     if (currentStep === STEPS.length - 1) {
       // Complete onboarding
       try {
-        const response = await fetch("/api/onboarding/complete", {
+        const response = await fetch(`${apiUrl}/api/onboarding/complete`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ use_case: selectedUseCase })
@@ -133,7 +147,12 @@ export default function OnboardingPage() {
               Skip
             </Button>
           </div>
-          <Progress value={progress} className="h-2" />
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-primary h-2 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
           <p className="text-sm text-muted-foreground mt-2">
             Step {currentStep + 1} of {STEPS.length}
           </p>

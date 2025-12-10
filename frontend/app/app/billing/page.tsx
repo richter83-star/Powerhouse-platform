@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreditCard, Download, Calendar, CheckCircle2, XCircle, AlertCircle, Plus, Trash2, Star, Activity } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { useState, useEffect } from "react";
 
 interface Subscription {
   id: string;

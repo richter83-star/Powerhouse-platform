@@ -10,6 +10,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 import requests
 import json
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from .base import BaseLLMProvider, LLMResponse
 from utils.logging import get_logger
@@ -69,6 +70,12 @@ class RouteLLMProvider(BaseLLMProvider):
             f"Initialized RouteLLM provider with strategy: {routing_strategy}"
         )
     
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((requests.exceptions.RequestException, LLMError)),
+        reraise=True
+    )
     def invoke(
         self,
         prompt: str,
@@ -194,19 +201,40 @@ class RouteLLMProvider(BaseLLMProvider):
                 timestamp=datetime.now()
             )
             
-        except requests.exceptions.RequestException as e:
-            error_msg = f"RouteLLM API request failed: {str(e)}"
-            logger.error(error_msg)
+        except requests.exceptions.HTTPError as e:
+            # HTTP errors (4xx, 5xx) - may not be retryable
+            error_msg = f"RouteLLM API HTTP error: {str(e)}"
+            status_code = e.response.status_code if hasattr(e, 'response') else None
             
             # Try to extract error details from response
             try:
-                error_data = e.response.json() if hasattr(e, 'response') else {}
-                error_detail = error_data.get('error', {}).get('message', str(e))
-                error_msg = f"RouteLLM API error: {error_detail}"
+                if hasattr(e, 'response') and e.response:
+                    error_data = e.response.json()
+                    error_detail = error_data.get('error', {}).get('message', str(e))
+                    error_msg = f"RouteLLM API error: {error_detail}"
             except:
                 pass
             
-            raise LLMError(error_msg)
+            logger.error(f"{error_msg} (Status: {status_code})")
+            
+            # Don't retry 4xx errors (client errors)
+            if status_code and 400 <= status_code < 500:
+                raise LLMError(error_msg, {"provider": "routellm", "status_code": status_code})
+            
+            # Retry 5xx errors (server errors)
+            raise LLMError(error_msg, {"provider": "routellm", "status_code": status_code, "retryable": True})
+            
+        except requests.exceptions.RequestException as e:
+            # Network errors, timeouts - retryable
+            error_msg = f"RouteLLM API request failed: {str(e)}"
+            logger.error(error_msg)
+            raise LLMError(error_msg, {"provider": "routellm", "retryable": True})
+            
+        except Exception as e:
+            # Unexpected errors
+            error_msg = f"Unexpected error in RouteLLM provider: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            raise LLMError(error_msg, {"provider": "routellm"})
     
     def invoke_streaming(
         self,

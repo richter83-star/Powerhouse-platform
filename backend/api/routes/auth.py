@@ -23,12 +23,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """
     Authenticate user and return JWT access token.
     
-    For demo purposes, accepts any username with password "demo123".
-    In production, this would verify against a user database.
-    
-    **Demo Credentials:**
-    - Username: any username
-    - Password: demo123
+    Requires valid email and password registered in the system.
     """
     user = authenticate_user(form_data.username, form_data.password)
     

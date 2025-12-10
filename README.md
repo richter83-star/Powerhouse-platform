@@ -14,39 +14,69 @@ Enterprise-grade multi-agent AI platform for B2B use cases. Orchestrates 19+ spe
 
 ### Prerequisites
 
-- Python 3.11+
-- Node.js 18+
-- Docker & Docker Compose
-- PostgreSQL 15 (or use Docker)
+Before installing, make sure you have:
 
-### Installation
+- **Python 3.11+** - [Download](https://www.python.org/downloads/) (check "Add Python to PATH")
+- **Node.js 18+** - [Download](https://nodejs.org/) (LTS version recommended)
+- **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop/) (for database)
+- **Git** (optional, for cloning the repository)
 
-1. **Run Diagnostics** (recommended first step):
+### One-Click Installation (Recommended)
+
+**Windows Users - Just 2 Steps:**
+
+1. **Double-click `INSTALL.bat`**
+   - ✅ Checks all prerequisites automatically
+   - ✅ Installs backend dependencies (Python packages)
+   - ✅ Installs frontend dependencies (Node.js packages)
+   - ✅ Sets up environment files
+   - ✅ Verifies installation
+   - ⏱️ Takes 5-10 minutes
+
+2. **Double-click `START_POWERHOUSE_FULL.bat`**
+   - ✅ Starts PostgreSQL database
+   - ✅ Starts FastAPI backend (port 8001)
+   - ✅ Starts Next.js frontend (port 3000)
+   - ✅ Opens browser automatically
+   - ⏱️ Takes 30-60 seconds
+
+**That's it!** You're ready to use Powerhouse at http://localhost:3000
+
+> 💡 **Tip:** See `QUICK_START.md` for detailed step-by-step instructions and troubleshooting.
+
+### Alternative: Manual Installation
+
+If you prefer manual steps or encounter issues:
+
+1. **Run Diagnostics** (troubleshooting):
    ```bash
    DIAGNOSE.bat
    ```
 
 2. **Install Dependencies**:
    ```bash
-   INSTALL_FIXED_V2.bat
-   ```
-
-3. **Start Services**:
-   ```bash
-   START_POWERHOUSE_FULL.bat
+   INSTALL.bat
    ```
    
-   Or start individually:
+   Or install backend only:
    ```bash
-   1_START_DATABASE.bat    # PostgreSQL
-   2_START_BACKEND.bat     # FastAPI (port 8001)
-   3_START_FRONTEND.bat    # Next.js (port 3000)
+   scripts\INSTALL_BACKEND_ONLY.bat
    ```
 
-4. **Access Application**:
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8001
-   - API Docs: http://localhost:8001/docs
+3. **Start Services Individually**:
+   ```bash
+   1_START_DATABASE.bat    # PostgreSQL (wait for it to finish)
+   2_START_BACKEND.bat     # FastAPI (keep window open)
+   3_START_FRONTEND.bat    # Next.js (keep window open)
+   ```
+
+### Access Points
+
+Once running, access:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8001
+- **API Documentation**: http://localhost:8001/docs
+- **Database**: localhost:5432 (PostgreSQL)
 
 ## 📁 Project Structure
 
@@ -67,23 +97,44 @@ POWERHOUSE_DEBUG/
 
 ## 🔧 Development
 
-### Backend
+### Backend Development
 
 ```bash
 cd backend
-python -m venv venv
-venv\Scripts\activate  # Windows
+venv\Scripts\activate  # Windows (activate virtual environment)
+# Or: source venv/bin/activate  # Linux/Mac
+
+# Install dependencies (if not already done)
 pip install -r requirements.txt
-uvicorn api.server:app --reload
+
+# Run development server
+uvicorn api.server:app --reload --port 8001
 ```
 
-### Frontend
+### Frontend Development
 
 ```bash
 cd frontend/app
+
+# Install dependencies (if not already done)
 npm install
+
+# Run development server
 npm run dev
 ```
+
+### Environment Variables
+
+**Backend** (`backend/.env`):
+- Copy `.env.example` to `.env` and configure:
+  - Database connection string
+  - JWT secrets
+  - API keys (OpenAI, Stripe, etc.)
+
+**Frontend** (`frontend/app/.env.local`):
+- Copy `.env.example` to `.env.local` and configure:
+  - `NEXT_PUBLIC_API_URL` (default: http://localhost:8001)
+  - Authentication settings
 
 ## 🧪 Testing
 
@@ -113,13 +164,32 @@ npm test
 
 ## 🚢 Deployment
 
+### Production Installer (Recommended for End Users)
+
+Build a professional Windows installer that creates `Setup.exe` and `Powerhouse.exe`:
+
+```batch
+BUILD_PRODUCTION.bat
+```
+
+**Output**: `electron-app/dist/Powerhouse Setup 1.0.0.exe`
+
+This creates:
+- ✅ **Setup.exe** - Professional Windows installer (~500-800 MB)
+- ✅ **Powerhouse.exe** - Desktop launcher (after installation)
+- ✅ Bundles all dependencies
+- ✅ One-click installation for end users
+- ✅ Native desktop app experience
+
+See `BUILD_QUICK_REFERENCE.md` for quick guide or `electron-app/README_PRODUCTION.md` for detailed documentation.
+
 ### Docker
 
 ```bash
 docker-compose up -d
 ```
 
-### Production
+### Production Server Deployment
 
 See deployment guides in `backend/docs/` directory.
 
@@ -137,5 +207,15 @@ See deployment guides in `backend/docs/` directory.
 
 ---
 
-**Note**: This is an active development project. See `README_FIRST.txt` for installation troubleshooting.
+## 📖 Additional Resources
+
+- **Quick Start Guide**: See `QUICK_START.md` for step-by-step instructions
+- **Installation Troubleshooting**: See `QUICK_START.md` (Troubleshooting section)
+- **Architecture**: See `docs/ARCHITECTURE.md` for system design
+- **Deployment**: See `docs/DEPLOYMENT_GUIDE.md` for production setup
+- **Git Setup**: See `docs/GIT_SETUP.md` for repository configuration
+
+---
+
+**Note**: This is an active development project. For the fastest setup, use `INSTALL.bat` (one-click installer).
 
