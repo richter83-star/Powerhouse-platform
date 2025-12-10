@@ -23,6 +23,16 @@ echo.
 echo ============================================================================
 echo Powerhouse - Complete Uninstall
 echo ============================================================================
+if /i "%AUTO_MODE%"=="auto" (
+    echo Running in AUTO mode (no prompts)
+    if /i "%PRESERVE_DATA%"=="preserve_data" (
+        echo Data preservation: ENABLED
+    ) else (
+        echo Data preservation: DISABLED (data will be deleted)
+    )
+) else (
+    echo Running in INTERACTIVE mode
+)
 echo.
 
 REM Check if running from correct directory
@@ -41,19 +51,41 @@ echo [1/5] Stopping all services...
 echo.
 
 if exist "STOP_ALL.bat" (
+    echo Using STOP_ALL.bat to stop services...
     call STOP_ALL.bat
+    if errorlevel 1 (
+        echo Warning: STOP_ALL.bat returned an error, continuing anyway...
+    )
 ) else (
+    echo STOP_ALL.bat not found, stopping services manually...
     echo Stopping Docker containers...
     docker-compose down 2>nul
+    if errorlevel 1 (
+        echo Warning: Docker compose down failed (containers may not be running)
+    ) else (
+        echo Docker containers stopped successfully.
+    )
     
     echo Stopping Python processes...
     taskkill /F /IM python.exe 2>nul
+    if errorlevel 1 (
+        echo No Python processes found running.
+    ) else (
+        echo Python processes stopped.
+    )
     
     echo Stopping Node.js processes...
     taskkill /F /IM node.exe 2>nul
+    if errorlevel 1 (
+        echo No Node.js processes found running.
+    ) else (
+        echo Node.js processes stopped.
+    )
 )
 
+echo Waiting 3 seconds for processes to fully stop...
 timeout /t 3 /nobreak >nul
+echo [OK] Services stopped.
 echo.
 
 REM ============================================================================
@@ -83,13 +115,28 @@ if /i "%AUTO_MODE%"=="auto" (
 
 if /i "!DELETE_DATA!"=="yes" (
     echo Removing Docker containers and volumes (this deletes all data!)...
-    docker-compose down -v 2>nul
+    docker-compose down -v
+    if errorlevel 1 (
+        echo Warning: docker-compose down -v failed
+    ) else (
+        echo Docker containers and volumes removed.
+    )
     docker volume rm postgres_data redis_data 2>nul
-    echo Database data deleted.
+    if errorlevel 1 (
+        echo Warning: Some volumes may not exist or are still in use
+    ) else (
+        echo Database volumes deleted.
+    )
+    echo [OK] Database data deleted.
 ) else (
     echo Removing Docker containers (keeping volumes - data preserved)...
-    docker-compose down 2>nul
-    echo Database data preserved in Docker volumes.
+    docker-compose down
+    if errorlevel 1 (
+        echo Warning: docker-compose down failed (containers may not exist)
+    ) else (
+        echo Docker containers removed.
+    )
+    echo [OK] Database data preserved in Docker volumes.
 )
 
 if /i "!REMOVE_IMAGES!"=="yes" (
@@ -110,22 +157,23 @@ cd backend
 
 if exist "requirements.txt" (
     echo Reading requirements.txt...
-    
-    REM Try to uninstall packages
     echo Attempting to uninstall backend dependencies...
-    pip uninstall -y -r requirements.txt 2>nul
+    echo This may take a moment...
+    pip uninstall -y -r requirements.txt
     
     if errorlevel 1 (
         echo Warning: Some packages may not have been uninstalled.
-        echo This is normal if packages are shared with other projects.
+        echo This is normal if packages are shared with other projects or not installed.
     ) else (
-        echo Backend packages uninstalled successfully.
+        echo [OK] Backend packages uninstalled successfully.
     )
 ) else (
-    echo Warning: requirements.txt not found, skipping Python package uninstall.
+    echo Warning: requirements.txt not found in backend directory
+    echo Skipping Python package uninstall.
 )
 
 cd ..
+echo [OK] Step 3 complete.
 
 echo.
 
@@ -139,24 +187,40 @@ echo.
 if exist "frontend\app\node_modules" (
     echo Removing frontend node_modules...
     rmdir /s /q "frontend\app\node_modules" 2>nul
-    echo Frontend node_modules removed.
+    if exist "frontend\app\node_modules" (
+        echo Warning: Failed to remove frontend node_modules completely
+    ) else (
+        echo [OK] Frontend node_modules removed.
+    )
+) else (
+    echo Frontend node_modules not found (may already be removed).
 )
 
 if exist "frontend\app\.next" (
     echo Removing Next.js build cache...
     rmdir /s /q "frontend\app\.next" 2>nul
+    echo [OK] Next.js build cache removed.
 )
 
 if exist "electron-app\node_modules" (
     echo Removing Electron app node_modules...
     rmdir /s /q "electron-app\node_modules" 2>nul
-    echo Electron node_modules removed.
+    if exist "electron-app\node_modules" (
+        echo Warning: Failed to remove Electron node_modules completely
+    ) else (
+        echo [OK] Electron node_modules removed.
+    )
+) else (
+    echo Electron node_modules not found (may already be removed).
 )
 
 if exist "electron-app\dist" (
     echo Removing Electron build artifacts...
     rmdir /s /q "electron-app\dist" 2>nul
+    echo [OK] Electron build artifacts removed.
 )
+
+echo [OK] Step 4 complete.
 
 echo.
 

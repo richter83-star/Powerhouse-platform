@@ -58,13 +58,19 @@ echo.
 
 set /p PRESERVE_DATA_OPTION="Do you want to preserve database data? (yes/no - default: no): "
 
+echo.
 if /i "%PRESERVE_DATA_OPTION%"=="yes" (
-    echo Calling uninstall with data preservation...
+    echo [INFO] Calling uninstall with data preservation...
+    echo [INFO] Command: UNINSTALL.bat auto preserve_data
     call UNINSTALL.bat auto preserve_data
 ) else (
-    echo Calling uninstall (data will be deleted)...
+    echo [INFO] Calling uninstall (data will be deleted)...
+    echo [INFO] Command: UNINSTALL.bat auto
     call UNINSTALL.bat auto
 )
+
+echo.
+echo [INFO] Uninstall script finished. Return code: %ERRORLEVEL%
 
 if errorlevel 1 (
     echo.
