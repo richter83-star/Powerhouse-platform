@@ -19,13 +19,25 @@ echo.
 echo WARNING: This will delete all database data unless you choose to preserve it!
 echo.
 
+:confirm_loop
 set /p CONFIRM="Are you sure you want to proceed? (yes/no): "
 
-if /i not "%CONFIRM%"=="yes" (
+if "%CONFIRM%"=="" (
+    echo Please enter 'yes' or 'no'
+    goto confirm_loop
+)
+
+if /i "%CONFIRM%"=="yes" goto proceed
+if /i "%CONFIRM%"=="no" (
     echo Reinstall cancelled.
     pause
     exit /b 0
 )
+
+echo Invalid input. Please enter 'yes' or 'no'
+goto confirm_loop
+
+:proceed
 
 REM ============================================================================
 REM Step 1: Uninstall
@@ -36,8 +48,23 @@ echo ===========================================================================
 echo Step 1: Uninstalling Powerhouse...
 echo ============================================================================
 echo.
+echo This will:
+echo - Stop all services
+echo - Remove Docker containers
+echo - Uninstall Python packages
+echo - Remove Node.js packages
+echo - Clean up artifacts
+echo.
 
-call UNINSTALL.bat
+set /p PRESERVE_DATA_OPTION="Do you want to preserve database data? (yes/no - default: no): "
+
+if /i "%PRESERVE_DATA_OPTION%"=="yes" (
+    echo Calling uninstall with data preservation...
+    call UNINSTALL.bat auto preserve_data
+) else (
+    echo Calling uninstall (data will be deleted)...
+    call UNINSTALL.bat auto
+)
 
 if errorlevel 1 (
     echo.
@@ -105,16 +132,31 @@ echo Step 4: Starting services...
 echo ============================================================================
 echo.
 
+:start_services_loop
 set /p START_SERVICES="Start Powerhouse services now? (yes/no): "
+
+if "%START_SERVICES%"=="" (
+    echo Please enter 'yes' or 'no'
+    goto start_services_loop
+)
 
 if /i "%START_SERVICES%"=="yes" (
     echo.
     echo Starting Powerhouse...
     call START_POWERHOUSE_FULL.bat
-) else (
+    goto services_done
+)
+
+if /i "%START_SERVICES%"=="no" (
     echo.
     echo Services not started. Start manually with: START_POWERHOUSE_FULL.bat
+    goto services_done
 )
+
+echo Invalid input. Please enter 'yes' or 'no'
+goto start_services_loop
+
+:services_done
 
 echo.
 echo ============================================================================

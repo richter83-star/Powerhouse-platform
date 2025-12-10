@@ -8,6 +8,16 @@ REM - Python packages
 REM - Node.js packages
 REM - Build artifacts
 REM ============================================================================
+REM Usage: UNINSTALL.bat [auto] [preserve_data]
+REM   auto - Skip all prompts (use defaults)
+REM   preserve_data - Keep database data (only works with auto)
+REM ============================================================================
+
+setlocal enabledelayedexpansion
+
+REM Check if running in auto mode
+set "AUTO_MODE=%1"
+set "PRESERVE_DATA=%2"
 
 echo.
 echo ============================================================================
@@ -54,9 +64,24 @@ echo [2/5] Removing Docker containers and volumes...
 echo.
 
 REM Ask user about data preservation
-set /p DELETE_DATA="Do you want to DELETE all database data? (yes/no): "
+if /i "%AUTO_MODE%"=="auto" (
+    if /i "%PRESERVE_DATA%"=="preserve_data" (
+        set "DELETE_DATA=no"
+        echo Auto mode: Preserving database data...
+    ) else (
+        set "DELETE_DATA=yes"
+        echo Auto mode: Deleting database data...
+    )
+    set "REMOVE_IMAGES=no"
+) else (
+    set /p DELETE_DATA="Do you want to DELETE all database data? (yes/no): "
+    if "%DELETE_DATA%"=="" set "DELETE_DATA=no"
+    
+    set /p REMOVE_IMAGES="Remove Docker images? (yes/no): "
+    if "%REMOVE_IMAGES%"=="" set "REMOVE_IMAGES=no"
+)
 
-if /i "%DELETE_DATA%"=="yes" (
+if /i "!DELETE_DATA!"=="yes" (
     echo Removing Docker containers and volumes (this deletes all data!)...
     docker-compose down -v 2>nul
     docker volume rm postgres_data redis_data 2>nul
@@ -67,9 +92,7 @@ if /i "%DELETE_DATA%"=="yes" (
     echo Database data preserved in Docker volumes.
 )
 
-REM Remove Docker images (optional)
-set /p REMOVE_IMAGES="Remove Docker images? (yes/no): "
-if /i "%REMOVE_IMAGES%"=="yes" (
+if /i "!REMOVE_IMAGES!"=="yes" (
     docker rmi powerhouse_backend powerhouse_frontend 2>nul
     echo Docker images removed.
 )
@@ -144,9 +167,19 @@ REM ============================================================================
 echo [5/5] Cleaning up artifacts...
 echo.
 
-set /p CLEAN_CACHE="Remove Python cache and build artifacts? (yes/no): "
+if /i "%AUTO_MODE%"=="auto" (
+    set "CLEAN_CACHE=yes"
+    set "REMOVE_ENV=no"
+    echo Auto mode: Cleaning cache, preserving .env files...
+) else (
+    set /p CLEAN_CACHE="Remove Python cache and build artifacts? (yes/no): "
+    if "!CLEAN_CACHE!"=="" set "CLEAN_CACHE=yes"
+    
+    set /p REMOVE_ENV="Remove .env files? (yes/no - recommended: no if you want to keep config): "
+    if "!REMOVE_ENV!"=="" set "REMOVE_ENV=no"
+)
 
-if /i "%CLEAN_CACHE%"=="yes" (
+if /i "!CLEAN_CACHE!"=="yes" (
     echo Removing Python cache files...
     for /d /r . %%d in (__pycache__) do @if exist "%%d" rd /s /q "%%d" 2>nul
     del /s /q *.pyc 2>nul
@@ -165,9 +198,7 @@ REM ============================================================================
 REM Optional: Remove Environment Files
 REM ============================================================================
 
-set /p REMOVE_ENV="Remove .env files? (yes/no - recommended: no if you want to keep config): "
-
-if /i "%REMOVE_ENV%"=="yes" (
+if /i "!REMOVE_ENV!"=="yes" (
     echo Removing environment files...
     del backend\.env 2>nul
     del frontend\app\.env.local 2>nul
@@ -212,5 +243,10 @@ echo 2. Run: START_POWERHOUSE_FULL.bat
 echo.
 echo ============================================================================
 
-pause
+REM Only pause if not in auto mode
+if /i not "%AUTO_MODE%"=="auto" (
+    pause
+)
+
+exit /b 0
 
