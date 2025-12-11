@@ -37,9 +37,12 @@ echo.
 
 REM Check if running from correct directory
 if not exist "backend\requirements.txt" (
-    echo ERROR: Please run this script from the POWERHOUSE_DEBUG directory!
-    echo Current directory: %CD%
-    pause
+    echo [ERROR] Please run this script from the POWERHOUSE_DEBUG directory!
+    echo [ERROR] Current directory: %CD%
+    echo [ERROR] Looking for: backend\requirements.txt
+    if /i not "%AUTO_MODE%"=="auto" (
+        pause
+    )
     exit /b 1
 )
 

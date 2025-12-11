@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 REM ============================================================================
 REM Powerhouse - Clean Reinstall Script
 REM ============================================================================
@@ -56,28 +57,52 @@ echo - Remove Node.js packages
 echo - Clean up artifacts
 echo.
 
+:preserve_data_loop
 set /p PRESERVE_DATA_OPTION="Do you want to preserve database data? (yes/no - default: no): "
 
-echo.
-if /i "%PRESERVE_DATA_OPTION%"=="yes" (
-    echo [INFO] Calling uninstall with data preservation...
-    echo [INFO] Command: UNINSTALL.bat auto preserve_data
-    call UNINSTALL.bat auto preserve_data
-) else (
-    echo [INFO] Calling uninstall (data will be deleted)...
-    echo [INFO] Command: UNINSTALL.bat auto
-    call UNINSTALL.bat auto
+if "%PRESERVE_DATA_OPTION%"=="" (
+    echo Using default: no (database data will be deleted)
+    set "PRESERVE_DATA_OPTION=no"
 )
 
-echo.
-echo [INFO] Uninstall script finished. Return code: %ERRORLEVEL%
+if /i "%PRESERVE_DATA_OPTION%"=="yes" goto preserve_yes
+if /i "%PRESERVE_DATA_OPTION%"=="no" goto preserve_no
 
-if errorlevel 1 (
+echo Invalid input. Please enter 'yes' or 'no' (or press Enter for default: no)
+goto preserve_data_loop
+
+:preserve_yes
+echo.
+echo [INFO] Calling uninstall with data preservation...
+echo [INFO] Command: UNINSTALL.bat auto preserve_data
+echo.
+call UNINSTALL.bat auto preserve_data
+set "UNINSTALL_RESULT=%ERRORLEVEL%"
+goto uninstall_done
+
+:preserve_no
+echo.
+echo [INFO] Calling uninstall (data will be deleted)...
+echo [INFO] Command: UNINSTALL.bat auto
+echo.
+call UNINSTALL.bat auto
+set "UNINSTALL_RESULT=%ERRORLEVEL%"
+
+:uninstall_done
+echo.
+echo ============================================================================
+echo [INFO] Uninstall script finished. Return code: %UNINSTALL_RESULT%
+echo ============================================================================
+echo.
+
+if !UNINSTALL_RESULT! NEQ 0 (
+    echo [ERROR] Uninstall returned error code !UNINSTALL_RESULT!
+    echo The uninstall may have had issues, but continuing anyway...
     echo.
-    echo ERROR: Uninstall failed. Please check the errors above.
     pause
-    exit /b 1
 )
+
+REM Error checking moved to after the call, using UNINSTALL_RESULT variable
 
 REM ============================================================================
 REM Step 2: Pull Latest Code (if using Git)
@@ -90,16 +115,20 @@ echo ===========================================================================
 echo.
 
 if exist ".git" (
-    echo Pulling latest code from Git...
+    echo [INFO] Pulling latest code from Git...
     git pull origin main
     
     if errorlevel 1 (
-        echo Warning: Git pull failed. Continuing with current code...
+        echo [WARN] Git pull failed. Continuing with current code...
+        echo [WARN] This is OK if you're already up to date or not connected to remote.
+    ) else (
+        echo [OK] Git pull successful.
     )
 ) else (
-    echo No Git repository found. Using current code...
+    echo [INFO] No Git repository found. Using current code...
 )
 
+echo [OK] Step 2 complete.
 echo.
 
 REM ============================================================================
@@ -112,20 +141,35 @@ echo Step 3: Installing Powerhouse...
 echo ============================================================================
 echo.
 
-if exist "INSTALL.bat" (
-    call INSTALL.bat
-) else (
-    echo ERROR: INSTALL.bat not found!
-    echo Please run installation manually.
+if not exist "INSTALL.bat" (
+    echo [ERROR] INSTALL.bat not found!
+    echo [ERROR] Please make sure you're in the POWERHOUSE_DEBUG directory.
+    echo [ERROR] Current directory: %CD%
     pause
     exit /b 1
 )
 
-if errorlevel 1 (
+echo [INFO] Starting installation...
+echo [INFO] This may take 5-10 minutes...
+echo.
+call INSTALL.bat
+set "INSTALL_RESULT=%ERRORLEVEL%"
+
+echo.
+echo [INFO] Installation script finished. Return code: %INSTALL_RESULT%
+echo.
+
+if !INSTALL_RESULT! NEQ 0 (
+    echo [ERROR] Installation returned error code !INSTALL_RESULT!
+    echo [ERROR] Please check the errors above.
     echo.
-    echo ERROR: Installation failed. Please check the errors above.
-    pause
-    exit /b 1
+    echo Do you want to continue anyway? (yes/no)
+    set /p CONTINUE_ANYWAY="> "
+    if /i not "!CONTINUE_ANYWAY!"=="yes" (
+        pause
+        exit /b 1
+    )
+    echo [WARN] Continuing despite installation errors...
 )
 
 REM ============================================================================
