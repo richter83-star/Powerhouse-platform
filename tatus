@@ -1,0 +1,140 @@
+[1mdiff --git a/CLEAN_REINSTALL.bat b/CLEAN_REINSTALL.bat[m
+[1mindex 166ebd6..24ea58e 100644[m
+[1m--- a/CLEAN_REINSTALL.bat[m
+[1m+++ b/CLEAN_REINSTALL.bat[m
+[36m@@ -56,29 +56,53 @@[m [mecho - Remove Node.js packages[m
+ echo - Clean up artifacts[m
+ echo.[m
+ [m
+[32m+[m[32m:preserve_data_loop[m
+ set /p PRESERVE_DATA_OPTION="Do you want to preserve database data? (yes/no - default: no): "[m
+ [m
+[31m-echo.[m
+[31m-if /i "%PRESERVE_DATA_OPTION%"=="yes" ([m
+[31m-    echo [INFO] Calling uninstall with data preservation...[m
+[31m-    echo [INFO] Command: UNINSTALL.bat auto preserve_data[m
+[31m-    call UNINSTALL.bat auto preserve_data[m
+[31m-) else ([m
+[31m-    echo [INFO] Calling uninstall (data will be deleted)...[m
+[31m-    echo [INFO] Command: UNINSTALL.bat auto[m
+[31m-    call UNINSTALL.bat auto[m
+[32m+[m[32mif "%PRESERVE_DATA_OPTION%"=="" ([m
+[32m+[m[32m    echo Using default: no (database data will be deleted)[m
+[32m+[m[32m    set "PRESERVE_DATA_OPTION=no"[m
+ )[m
+ [m
+[32m+[m[32mif /i "%PRESERVE_DATA_OPTION%"=="yes" goto preserve_yes[m
+[32m+[m[32mif /i "%PRESERVE_DATA_OPTION%"=="no" goto preserve_no[m
+[32m+[m
+[32m+[m[32mecho Invalid input. Please enter 'yes' or 'no' (or press Enter for default: no)[m
+[32m+[m[32mgoto preserve_data_loop[m
+[32m+[m
+[32m+[m[32m:preserve_yes[m
+[32m+[m[32mecho.[m
+[32m+[m[32mecho [INFO] Calling uninstall with data preservation...[m
+[32m+[m[32mecho [INFO] Command: UNINSTALL.bat auto preserve_data[m
+[32m+[m[32mecho.[m
+[32m+[m[32mcall UNINSTALL.bat auto preserve_data[m
+[32m+[m[32mset "UNINSTALL_RESULT=%ERRORLEVEL%"[m
+[32m+[m[32mgoto uninstall_done[m
+[32m+[m
+[32m+[m[32m:preserve_no[m
+[32m+[m[32mecho.[m
+[32m+[m[32mecho [INFO] Calling uninstall (data will be deleted)...[m
+[32m+[m[32mecho [INFO] Command: UNINSTALL.bat auto[m
+[32m+[m[32mecho.[m
+[32m+[m[32mcall UNINSTALL.bat auto[m
+[32m+[m[32mset "UNINSTALL_RESULT=%ERRORLEVEL%"[m
+[32m+[m
+[32m+[m[32m:uninstall_done[m
+[32m+[m[32mecho.[m
+[32m+[m[32mecho ============================================================================[m
+[32m+[m[32mecho [INFO] Uninstall script finished. Return code: %UNINSTALL_RESULT%[m
+[32m+[m[32mecho ============================================================================[m
+ echo.[m
+[31m-echo [INFO] Uninstall script finished. Return code: %ERRORLEVEL%[m
+ [m
+[31m-if errorlevel 1 ([m
+[32m+[m[32mif %UNINSTALL_RESULT% NEQ 0 ([m
+[32m+[m[32m    echo [ERROR] Uninstall returned error code %UNINSTALL_RESULT%[m
+[32m+[m[32m    echo The uninstall may have had issues, but continuing anyway...[m
+     echo.[m
+[31m-    echo ERROR: Uninstall failed. Please check the errors above.[m
+     pause[m
+[31m-    exit /b 1[m
+ )[m
+ [m
+[32m+[m[32mREM Error checking moved to after the call, using UNINSTALL_RESULT variable[m
+[32m+[m
+ REM ============================================================================[m
+ REM Step 2: Pull Latest Code (if using Git)[m
+ REM ============================================================================[m
+[36m@@ -90,16 +114,20 @@[m [mecho ===========================================================================[m
+ echo.[m
+ [m
+ if exist ".git" ([m
+[31m-    echo Pulling latest code from Git...[m
+[32m+[m[32m    echo [INFO] Pulling latest code from Git...[m
+     git pull origin main[m
+     [m
+     if errorlevel 1 ([m
+[31m-        echo Warning: Git pull failed. Continuing with current code...[m
+[32m+[m[32m        echo [WARN] Git pull failed. Continuing with current code...[m
+[32m+[m[32m        echo [WARN] This is OK if you're already up to date or not connected to remote.[m
+[32m+[m[32m    ) else ([m
+[32m+[m[32m        echo [OK] Git pull successful.[m
+     )[m
+ ) else ([m
+[31m-    echo No Git repository found. Using current code...[m
+[32m+[m[32m    echo [INFO] No Git repository found. Using current code...[m
+ )[m
+ [m
+[32m+[m[32mecho [OK] Step 2 complete.[m
+ echo.[m
+ [m
+ REM ============================================================================[m
+[36m@@ -112,20 +140,35 @@[m [mecho Step 3: Installing Powerhouse...[m
+ echo ============================================================================[m
+ echo.[m
+ [m
+[31m-if exist "INSTALL.bat" ([m
+[31m-    call INSTALL.bat[m
+[31m-) else ([m
+[31m-    echo ERROR: INSTALL.bat not found![m
+[31m-    echo Please run installation manually.[m
+[32m+[m[32mif not exist "INSTALL.bat" ([m
+[32m+[m[32m    echo [ERROR] INSTALL.bat not found![m
+[32m+[m[32m    echo [ERROR] Please make sure you're in the POWERHOUSE_DEBUG directory.[m
+[32m+[m[32m    echo [ERROR] Current directory: %CD%[m
+     pause[m
+     exit /b 1[m
+ )[m
+ [m
+[31m-if errorlevel 1 ([m
+[32m+[m[32mecho [INFO] Starting installation...[m
+[32m+[m[32mecho [INFO] This may take 5-10 minutes...[m
+[32m+[m[32mecho.[m
+[32m+[m[32mcall INSTALL.bat[m
+[32m+[m[32mset "INSTALL_RESULT=%ERRORLEVEL%"[m
+[32m+[m
+[32m+[m[32mecho.[m
+[32m+[m[32mecho [INFO] Installation script finished. Return code: %INSTALL_RESULT%[m
+[32m+[m[32mecho.[m
+[32m+[m
+[32m+[m[32mif %INSTALL_RESULT% NEQ 0 ([m
+[32m+[m[32m    echo [ERROR] Installation returned error code %INSTALL_RESULT%[m
+[32m+[m[32m    echo [ERROR] Please check the errors above.[m
+     echo.[m
+[31m-    echo ERROR: Installation failed. Please check the errors above.[m
+[31m-    pause[m
+[31m-    exit /b 1[m
+[32m+[m[32m    echo Do you want to continue anyway? (yes/no)[m
+[32m+[m[32m    set /p CONTINUE_ANYWAY="> "[m
+[32m+[m[32m    if /i not "!CONTINUE_ANYWAY!"=="yes" ([m
+[32m+[m[32m        pause[m
+[32m+[m[32m        exit /b 1[m
+[32m+[m[32m    )[m
+[32m+[m[32m    echo [WARN] Continuing despite installation errors...[m
+ )[m
+ [m
+ REM ============================================================================[m
