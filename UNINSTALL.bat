@@ -15,6 +15,10 @@ REM ============================================================================
 
 setlocal enabledelayedexpansion
 
+REM Logging setup
+set "LOG_FILE=%~dp0.cursor\debug.log"
+powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='UNINSTALL.bat:ENTRY';message='UNINSTALL script entry';data=@{autoMode='%1';preserveData='%2'};sessionId='debug-session';runId='run1';hypothesisId='D'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
+
 REM Check if running in auto mode
 set "AUTO_MODE=%1"
 set "PRESERVE_DATA=%2"
@@ -36,58 +40,69 @@ if /i "%AUTO_MODE%"=="auto" (
 echo.
 
 REM Check if running from correct directory
+powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='UNINSTALL.bat:42';message='Checking directory';data=@{currentDir='%CD%';checkingFor='backend\requirements.txt'};sessionId='debug-session';runId='run1';hypothesisId='D'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
+
 if not exist "backend\requirements.txt" (
+    powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='UNINSTALL.bat:44';message='ERROR: Wrong directory';data=@{currentDir='%CD%';action='exit'};sessionId='debug-session';runId='run1';hypothesisId='D'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
     echo [ERROR] Please run this script from the POWERHOUSE_DEBUG directory!
     echo [ERROR] Current directory: %CD%
     echo [ERROR] Looking for: backend\requirements.txt
     if /i not "%AUTO_MODE%"=="auto" (
         pause
     )
+    powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='UNINSTALL.bat:52';message='UNINSTALL exiting with error code 1';data=@{exitCode=1};sessionId='debug-session';runId='run1';hypothesisId='D'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
+    endlocal
     exit /b 1
 )
+
+powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='UNINSTALL.bat:56';message='Directory check passed';data=@{action='continue'};sessionId='debug-session';runId='run1';hypothesisId='D'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
 
 REM ============================================================================
 REM Step 1: Stop All Services
 REM ============================================================================
 
+powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='UNINSTALL.bat:64';message='Starting Step 1: Stop Services';data=@{step='1'};sessionId='debug-session';runId='run1';hypothesisId='D'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
+
 echo [1/5] Stopping all services...
 echo.
 
-if exist "STOP_ALL.bat" (
-    echo Using STOP_ALL.bat to stop services...
-    call STOP_ALL.bat
-    if errorlevel 1 (
-        echo Warning: STOP_ALL.bat returned an error, continuing anyway...
-    )
+echo Stopping Docker containers...
+docker-compose down 2>nul
+if errorlevel 1 (
+    echo Warning: Docker compose down failed (containers may not be running)
 ) else (
-    echo STOP_ALL.bat not found, stopping services manually...
-    echo Stopping Docker containers...
-    docker-compose down 2>nul
-    if errorlevel 1 (
-        echo Warning: Docker compose down failed (containers may not be running)
-    ) else (
-        echo Docker containers stopped successfully.
-    )
-    
-    echo Stopping Python processes...
-    taskkill /F /IM python.exe 2>nul
-    if errorlevel 1 (
-        echo No Python processes found running.
-    ) else (
-        echo Python processes stopped.
-    )
-    
-    echo Stopping Node.js processes...
-    taskkill /F /IM node.exe 2>nul
-    if errorlevel 1 (
-        echo No Node.js processes found running.
-    ) else (
-        echo Node.js processes stopped.
-    )
+    echo Docker containers stopped successfully.
+)
+
+echo Stopping backend processes...
+taskkill /F /FI "WINDOWTITLE eq Powerhouse - Backend*" 2>nul
+taskkill /F /FI "WINDOWTITLE eq *app.py*" 2>nul
+
+echo Stopping frontend processes...
+taskkill /F /FI "WINDOWTITLE eq Powerhouse - Frontend*" 2>nul
+taskkill /F /FI "WINDOWTITLE eq *next*" 2>nul
+
+echo Stopping Python processes...
+taskkill /F /IM python.exe 2>nul
+if errorlevel 1 (
+    echo No Python processes found running.
+) else (
+    echo Python processes stopped.
+)
+
+echo Stopping Node.js processes...
+taskkill /F /IM node.exe 2>nul
+if errorlevel 1 (
+    echo No Node.js processes found running.
+) else (
+    echo Node.js processes stopped.
 )
 
 echo Waiting 3 seconds for processes to fully stop...
 timeout /t 3 /nobreak >nul
+
+powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='UNINSTALL.bat:95';message='Step 1 complete';data=@{step='1_complete'};sessionId='debug-session';runId='run1';hypothesisId='D'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
+
 echo [OK] Services stopped.
 echo.
 
@@ -315,5 +330,8 @@ if /i not "%AUTO_MODE%"=="auto" (
     pause
 )
 
+powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='UNINSTALL.bat:326';message='UNINSTALL script about to exit';data=@{exitCode=0};sessionId='debug-session';runId='run1';hypothesisId='D'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
+
+endlocal
 exit /b 0
 

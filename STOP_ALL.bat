@@ -22,4 +22,8 @@ echo.
 
 echo [OK] All services stopped
 echo.
-pause
+
+REM Only pause if AUTO_MODE is not set to "auto" (interactive mode)
+if /i not "%AUTO_MODE%"=="auto" (
+    pause
+)
