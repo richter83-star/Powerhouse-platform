@@ -15,7 +15,11 @@ echo.
 echo This will install everything you need to run Powerhouse.
 echo Estimated time: 5-10 minutes
 echo.
-pause
+
+REM Only pause if AUTO_MODE is not set to "auto" (interactive mode)
+if /i not "%AUTO_MODE%"=="auto" (
+    pause
+)
 
 REM Create log file
 set "LOG_FILE=%SCRIPT_DIR%install_log.txt"
@@ -49,7 +53,9 @@ if !ERRORS! GTR 0 (
     echo.
     echo Please make sure you extracted the full project to: %CD%
     echo.
-    pause
+    if /i not "%AUTO_MODE%"=="auto" (
+        pause
+    )
     exit /b 1
 )
 
@@ -114,7 +120,9 @@ if !ERRORS! GTR 0 (
     echo.
     echo Please fix the errors above and run this installer again.
     echo.
-    pause
+    if /i not "%AUTO_MODE%"=="auto" (
+        pause
+    )
     exit /b 1
 )
 
@@ -135,7 +143,9 @@ pushd "%SCRIPT_DIR%backend"
 if errorlevel 1 (
     echo [ERROR] Cannot access backend folder
     echo [ERROR] Cannot access backend folder >> "%LOG_FILE%"
-    pause
+    if /i not "%AUTO_MODE%"=="auto" (
+        pause
+    )
     exit /b 1
 )
 
@@ -152,7 +162,9 @@ if errorlevel 1 (
     echo [ERROR] Failed to create virtual environment
     echo [ERROR] Failed to create virtual environment >> "%LOG_FILE%"
     popd
-    pause
+    if /i not "%AUTO_MODE%"=="auto" (
+        pause
+    )
     exit /b 1
 )
 
@@ -170,7 +182,9 @@ if errorlevel 1 (
     echo [ERROR] Failed to install Python packages >> "%LOG_FILE%"
     echo Check install_log.txt for details
     popd
-    pause
+    if /i not "%AUTO_MODE%"=="auto" (
+        pause
+    )
     exit /b 1
 )
 
@@ -190,7 +204,9 @@ pushd "%SCRIPT_DIR%frontend\app"
 if errorlevel 1 (
     echo [ERROR] Cannot access frontend/app folder
     echo [ERROR] Cannot access frontend/app folder >> "%LOG_FILE%"
-    pause
+    if /i not "%AUTO_MODE%"=="auto" (
+        pause
+    )
     exit /b 1
 )
 
@@ -201,7 +217,9 @@ if errorlevel 1 (
     echo [ERROR] Failed to install Node.js packages >> "%LOG_FILE%"
     echo Check install_log.txt for details
     popd
-    pause
+    if /i not "%AUTO_MODE%"=="auto" (
+        pause
+    )
     exit /b 1
 )
 
@@ -330,5 +348,7 @@ if /i "!START_NOW!"=="Y" (
 echo.
 echo Installation complete! Check install_log.txt if you encounter any issues.
 echo.
-pause
+if /i not "%AUTO_MODE%"=="auto" (
+    pause
+)
 
