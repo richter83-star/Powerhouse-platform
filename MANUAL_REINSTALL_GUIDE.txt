@@ -1,0 +1,74 @@
+============================================================================
+POWERHOUSE - Manual Clean Reinstall Guide
+============================================================================
+
+This guide provides simple step-by-step commands to completely reinstall
+Powerhouse without using the automated scripts.
+
+============================================================================
+STEP 1: Stop All Services
+============================================================================
+
+Open PowerShell as Administrator and run these commands one by one:
+
+1. Stop Docker containers:
+   docker-compose down
+
+2. Stop Python processes:
+   taskkill /F /IM python.exe
+
+3. Stop Node.js processes:
+   taskkill /F /IM node.exe
+
+============================================================================
+STEP 2: Remove Docker Data (OPTIONAL - deletes all database data)
+============================================================================
+
+If you want to DELETE ALL DATABASE DATA, run:
+   docker-compose down -v
+   docker volume rm postgres_data redis_data
+
+If you want to KEEP database data, skip this step.
+
+============================================================================
+STEP 3: Remove Virtual Environments (OPTIONAL)
+============================================================================
+
+If you want to reinstall Python packages from scratch:
+
+1. Delete backend virtual environment:
+   Remove-Item -Recurse -Force backend\venv
+
+2. Delete node_modules (optional):
+   Remove-Item -Recurse -Force frontend\app\node_modules
+
+============================================================================
+STEP 4: Fresh Installation
+============================================================================
+
+Simply run:
+   .\INSTALL.bat
+
+This will:
+- Install all Python packages
+- Install all Node.js packages
+- Set up environment files
+- Prepare everything for running
+
+============================================================================
+STEP 5: Start Powerhouse
+============================================================================
+
+Run:
+   .\START_POWERHOUSE_FULL.bat
+
+============================================================================
+QUICK ONE-LINER (PowerShell as Admin)
+============================================================================
+
+Run this to do it all at once:
+
+docker-compose down -v; taskkill /F /IM python.exe /IM node.exe 2>$null; Remove-Item -Recurse -Force backend\venv -ErrorAction SilentlyContinue; .\INSTALL.bat
+
+============================================================================
+
