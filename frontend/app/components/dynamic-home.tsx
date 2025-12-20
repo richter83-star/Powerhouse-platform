@@ -118,11 +118,11 @@ export function DynamicHome() {
     return colorMap[color] || colorMap.blue;
   };
 
-  const primaryColors = getColorClasses(currentUseCase.primaryColor);
-  const secondaryColors = getColorClasses(currentUseCase.secondaryColor);
+  const primaryColors = getColorClasses(currentUseCase.primaryColor || 'blue');
+  const secondaryColors = getColorClasses(currentUseCase.secondaryColor || 'purple');
 
   // Calculate total agent count
-  const totalAgents = currentUseCase.agentGroups.reduce((sum, group) => sum + group.agents.length, 0);
+  const totalAgents = currentUseCase.agentGroups?.reduce((sum, group) => sum + group.agents.length, 0) || 0;
 
   return (
     <div className="min-h-screen">
@@ -171,7 +171,7 @@ export function DynamicHome() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {currentUseCase.features.map((feature, index) => {
+            {currentUseCase.features?.map((feature, index) => {
               const featureColors = index === 0 ? primaryColors : index === 1 ? secondaryColors : getColorClasses('green');
               return (
                 <Card key={index} className="p-8 hover:shadow-xl transition-shadow">
@@ -205,20 +205,20 @@ export function DynamicHome() {
           </div>
 
           {/* Agent Groups */}
-          {currentUseCase.agentGroups.map((group, groupIndex) => {
-            const groupColors = getColorClasses(group.color);
+          {currentUseCase.agentGroups?.map((group, groupIndex) => {
+            const groupColors = getColorClasses(group.color || 'blue');
             return (
-              <div key={groupIndex} className={groupIndex < currentUseCase.agentGroups.length - 1 ? "mb-12" : ""}>
+              <div key={groupIndex} className={groupIndex < (currentUseCase.agentGroups?.length || 0) - 1 ? "mb-12" : ""}>
                 <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                  {getIcon(group.icon, `w-6 h-6 ${groupColors.text}`)}
-                  {group.title}
+                  {getIcon(group.icon || 'Network', `w-6 h-6 ${groupColors.text}`)}
+                  {group.title || group.name}
                 </h3>
                 <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {group.agents.map((agent, agentIndex) => (
                     <Card key={agentIndex} className="p-6 bg-white hover:shadow-lg transition-shadow">
                       <div className="flex items-center gap-3 mb-3">
                         <div className={`w-10 h-10 ${groupColors.bg} rounded-full flex items-center justify-center flex-shrink-0`}>
-                          {getIcon(group.icon, `w-5 h-5 ${groupColors.text}`)}
+                          {getIcon(group.icon || 'Network', `w-5 h-5 ${groupColors.text}`)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-gray-900 truncate">{agent.name}</h4>

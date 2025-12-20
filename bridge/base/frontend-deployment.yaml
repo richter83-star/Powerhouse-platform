@@ -1,0 +1,46 @@
+#! frontend-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: frontend
+    namespace: powerhouse-platform
+    labels:
+        com.docker.compose.project: powerhouse-platform
+        com.docker.compose.service: frontend
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: powerhouse-platform
+            com.docker.compose.service: frontend
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: powerhouse-platform
+                com.docker.compose.service: frontend
+                com.docker.compose.network.default: "true"
+        spec:
+            restartPolicy: unless-stopped
+            containers:
+                - name: powerhouse-frontend
+                  image: powerhouse-platform-frontend
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: BACKEND_INTERNAL_URL
+                      value: "http://backend:8000"
+                    - name: DATABASE_URL
+                      value: "postgresql://powerhouse_user:securepass123@postgres:5432/powerhouse"
+                    - name: NEXTAUTH_SECRET
+                      value: "this_is_a_very_long_secure_secret_key_that_is_definitely_long_enough_to_pass_validation_12345"
+                    - name: NEXTAUTH_URL
+                      value: "http://localhost:3000"
+                    - name: NEXT_PUBLIC_API_URL
+                      value: "http://localhost:8001"
+                    - name: NODE_ENV
+                      value: "production"
+                  ports:
+                    - name: frontend-3000
+                      containerPort: 3000

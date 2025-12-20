@@ -10,19 +10,28 @@ generator client {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password      String
-  fullName      String
-  companyName   String?
-  jobTitle      String?
-  role          String    @default("user")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                    String    @id @map("id") @db.VarChar(36)
+  email                 String    @unique @map("email") @db.VarChar(255)
+  passwordHash          String    @map("password_hash") @db.VarChar(255)
+  fullName              String?   @map("full_name") @db.VarChar(255)
+  companyName           String?   @map("company_name") @db.VarChar(255)
+  jobTitle              String?   @map("job_title") @db.VarChar(255)
+  isActive              Int       @default(1) @map("is_active")
+  isVerified            Int       @default(0) @map("is_verified")
+  isLocked              Int       @default(0) @map("is_locked")
+  lockedUntil           DateTime? @map("locked_until") @db.Timestamp
+  failedLoginAttempts   Int       @default(0) @map("failed_login_attempts")
+  lastFailedLogin       DateTime? @map("last_failed_login") @db.Timestamp
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamp
+  updatedAt             DateTime? @updatedAt @map("updated_at") @db.Timestamp
+  lastLogin             DateTime? @map("last_login") @db.Timestamp
+  emailVerifiedAt       DateTime? @map("email_verified_at") @db.Timestamp
   
-  accounts      Account[]
-  sessions      Session[]
-  workflows     Workflow[]
+  accounts              Account[]
+  sessions              Session[]
+  workflows             Workflow[]
+  
+  @@map("users")
 }
 
 model Account {

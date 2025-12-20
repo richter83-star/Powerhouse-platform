@@ -21,28 +21,86 @@ Before installing, make sure you have:
 - **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop/) (for database)
 - **Git** (optional, for cloning the repository)
 
-### One-Click Installation (Recommended)
+### 🚀 Fast Installation Options
 
-**Windows Users - Just 2 Steps:**
+**Choose the fastest method for you:**
 
-1. **Double-click `INSTALL.bat`**
-   - ✅ Checks all prerequisites automatically
-   - ✅ Installs backend dependencies (Python packages)
-   - ✅ Installs frontend dependencies (Node.js packages)
-   - ✅ Sets up environment files
-   - ✅ Verifies installation
-   - ⏱️ Takes 5-10 minutes
+#### Option 1: Docker-Only Install (Fastest - Recommended!) ⭐
+**File:** `INSTALL_DOCKER_ONLY.bat`  
+**Time:** 5-8 minutes (first time), 30 seconds (after)  
+**Requirements:** Only Docker Desktop needed (no Python/Node.js!)
 
-2. **Double-click `START_POWERHOUSE_FULL.bat`**
-   - ✅ Starts PostgreSQL database
-   - ✅ Starts FastAPI backend (port 8001)
-   - ✅ Starts Next.js frontend (port 3000)
-   - ✅ Opens browser automatically
-   - ⏱️ Takes 30-60 seconds
+**Why this is fastest:**
+- ✅ No local dependencies to install
+- ✅ Everything runs in containers
+- ✅ Images cached for instant future startups
+- ✅ One script does everything
 
-**That's it!** You're ready to use Powerhouse at http://localhost:3000
+**Usage:**
+```bash
+INSTALL_DOCKER_ONLY.bat
+```
 
-> 💡 **Tip:** See `QUICK_START.md` for detailed step-by-step instructions and troubleshooting.
+#### Option 2: First-Time Setup Wizard
+**File:** `SETUP_FIRST_TIME.bat`  
+**Time:** 3-5 minutes (first time), 30 seconds (after)  
+**Best for:** Users who want step-by-step guidance
+
+**Features:**
+- ✅ Automatic prerequisite checking
+- ✅ Pre-downloads images for faster startup
+- ✅ Helpful error messages
+- ✅ Verifies everything works
+
+**Usage:**
+```bash
+SETUP_FIRST_TIME.bat
+```
+
+#### Option 3: Quick Install
+**File:** `QUICK_INSTALL.bat`  
+**Time:** 2-3 minutes (first time), 30 seconds (after)  
+**Best for:** Users who want fast setup with minimal interaction
+
+**Usage:**
+```bash
+QUICK_INSTALL.bat
+```
+
+#### Option 4: Traditional Install (Full Local Setup)
+**File:** `INSTALL.bat`  
+**Time:** 5-10 minutes  
+**Requirements:** Python 3.11+, Node.js 18+, Docker Desktop
+
+**Usage:**
+```bash
+INSTALL.bat
+```
+
+---
+
+### 🎯 Recommended: Docker-Only Install
+
+**For first-time users, we recommend `INSTALL_DOCKER_ONLY.bat`:**
+
+1. **Install Docker Desktop** (if not already installed)
+   - Download: https://www.docker.com/products/docker-desktop/
+   - Start Docker Desktop and wait for it to fully start
+
+2. **Run the installer:**
+   ```bash
+   INSTALL_DOCKER_ONLY.bat
+   ```
+
+3. **That's it!** Access at http://localhost:3000
+
+**Advantages:**
+- No Python or Node.js installation needed
+- Faster setup (everything in Docker)
+- Easier to maintain
+- Works consistently across different systems
+
+> 💡 **See `FIRST_TIME_SETUP.md`** for detailed comparison of all installation methods.
 
 ### Alternative: Manual Installation
 

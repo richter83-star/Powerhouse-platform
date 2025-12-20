@@ -1,6 +1,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -14,12 +15,12 @@ async function main() {
     where: { email: 'john@doe.com' },
     update: {},
     create: {
+      id: randomUUID(),
       email: 'john@doe.com',
-      password: hashedPassword,
+      passwordHash: hashedPassword,
       fullName: 'John Doe',
       companyName: 'Acme Corp',
       jobTitle: 'Compliance Manager',
-      role: 'admin',
     },
   });
 

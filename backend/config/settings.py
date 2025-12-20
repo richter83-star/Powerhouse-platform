@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
     redis_password: Optional[str] = None
-    redis_url: Optional[str] = Field(
+    redis_url: str = Field(
         default="redis://localhost:6379/0",
         description="Full Redis URL"
     )
@@ -190,7 +190,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,
-        extra="ignore"  # prevents crashes if new variables are added later
+        extra="allow"  # allows extra environment variables without errors
     )
 
 

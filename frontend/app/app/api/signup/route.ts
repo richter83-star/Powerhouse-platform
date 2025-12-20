@@ -1,7 +1,5 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,54 +15,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Use backend API for signup (bypasses Prisma issues)
+    // Use internal URL when running in Docker, external URL for client-side
+    const backendUrl = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+    
     try {
-      // Check if user already exists
-      const existingUser = await prisma.user.findUnique({
-        where: { email }
+      const response = await fetch(`${backendUrl}/api/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.toLowerCase().trim(),
+          password: password,
+          full_name: fullName,
+          company_name: companyName || null,
+          job_title: jobTitle || null,
+          tenant_id: 'default', // Default tenant for now
+        }),
       });
 
-      if (existingUser) {
+      const data = await response.json();
+
+      if (!response.ok) {
         return NextResponse.json(
-          { error: 'User already exists' },
-          { status: 400 }
+          { error: data.detail || data.message || 'Signup failed' },
+          { status: response.status }
         );
       }
 
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      // Create user
-      const user = await prisma.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          fullName,
-          companyName: companyName || null,
-          jobTitle: jobTitle || null,
-        },
-        select: {
-          id: true,
-          email: true,
-          fullName: true,
-          companyName: true,
-          jobTitle: true,
-        }
-      });
-
-      return NextResponse.json(user, { status: 201 });
-    } catch (dbError: any) {
-      // If database is unavailable, return mock success for demo purposes
-      console.warn('[DEMO MODE] Database unavailable, using mock response:', dbError?.message);
-      
-      const mockUser = {
-        id: `mock-${Date.now()}`,
-        email,
-        fullName,
+      // Return user info for frontend
+      return NextResponse.json({
+        id: data.user_id,
+        email: email,
+        fullName: fullName,
         companyName: companyName || null,
         jobTitle: jobTitle || null,
-      };
-
-      return NextResponse.json(mockUser, { status: 201 });
+        message: data.message,
+      }, { status: 201 });
+    } catch (backendError: any) {
+      console.error('Backend signup error:', backendError);
+      return NextResponse.json(
+        { error: 'Failed to connect to backend. Please ensure the backend is running.' },
+        { status: 503 }
+      );
     }
   } catch (error: any) {
     console.error('Signup error:', error);
