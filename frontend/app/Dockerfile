@@ -16,6 +16,8 @@ RUN npm ci --legacy-peer-deps
 COPY . .
 
 # Build Next.js for production
+# Disable standalone mode for Docker (use default mode)
+ENV DOCKER_BUILD=true
 RUN npm run build
 
 # Next.js production server listens on 3000
