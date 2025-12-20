@@ -98,7 +98,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
         
         # Remove server header (security through obscurity)
-        response.headers.pop("Server", None)
+        # Remove Server header if present (MutableHeaders doesn't have pop, use del)
+        if "Server" in response.headers:
+            del response.headers["Server"]
         
         return response
 

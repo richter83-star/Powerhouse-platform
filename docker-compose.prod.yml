@@ -8,8 +8,6 @@
 #   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 # =============================================================================
 
-version: "3.8"
-
 services:
   # PostgreSQL Database - Production Configuration
   postgres:
@@ -120,10 +118,10 @@ services:
     # Health checks with more strict settings
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 15s
-      timeout: 5s
+      interval: 30s
+      timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 180s
 
   # Frontend - Production Configuration
   frontend:

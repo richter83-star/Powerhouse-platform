@@ -6,7 +6,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     // Call FastAPI backend
-    const backendResponse = await fetch('http://localhost:8001/api/v1/agents', {
+    // Use internal URL when running in Docker, external URL for client-side
+    const backendUrl = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+    const backendResponse = await fetch(`${backendUrl}/api/v1/agents`, {
       headers: {
         'Content-Type': 'application/json',
       },

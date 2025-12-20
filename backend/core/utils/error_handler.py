@@ -96,9 +96,10 @@ def create_error_response(
     if category:
         error_response.details["category"] = category
     
+    # Use mode='json' to ensure datetime is properly serialized
     return JSONResponse(
         status_code=status_code,
-        content=error_response.model_dump()
+        content=error_response.model_dump(mode='json')
     )
 
 

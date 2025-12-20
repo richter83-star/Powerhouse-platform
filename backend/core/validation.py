@@ -84,16 +84,18 @@ class EnvironmentValidator:
     def validate_url(cls, value: str, var_name: str, schemes: Optional[List[str]] = None) -> bool:
         """Validate that a value is a valid URL."""
         if schemes is None:
-            schemes = ["http", "https", "postgresql", "redis"]
+            schemes = ["http", "https", "postgresql", "redis", "rediss", "postgres"]
         
-        # Basic URL validation
+        # Basic URL validation - supports username:password@host format
         url_pattern = re.compile(
             r'^(' + '|'.join(schemes) + r')://'  # scheme
+            r'(?:[^:@/]+(?::[^@/]+)?@)?'  # optional username:password@
             r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain
             r'localhost|'  # localhost
+            r'[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?|'  # hostname without dots
             r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # IP
             r'(?::\d+)?'  # optional port
-            r'(?:/?|[/?]\S+)$', re.IGNORECASE
+            r'(?:/.*)?$', re.IGNORECASE  # optional path
         )
         
         if not url_pattern.match(value):
