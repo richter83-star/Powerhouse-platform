@@ -1,0 +1,89 @@
+#! backend-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: backend
+    namespace: powerhouse-platform
+    labels:
+        com.docker.compose.project: powerhouse-platform
+        com.docker.compose.service: backend
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: powerhouse-platform
+            com.docker.compose.service: backend
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: powerhouse-platform
+                com.docker.compose.service: backend
+                com.docker.compose.network.default: "true"
+        spec:
+            restartPolicy: unless-stopped
+            containers:
+                - name: powerhouse-backend
+                  image: powerhouse-platform-backend
+                  imagePullPolicy: IfNotPresent
+                  args:
+                    - sh
+                    - -c
+                    - rm -f .env && python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 4
+                  env:
+                    - name: ACCESS_TOKEN_EXPIRE_MINUTES
+                      value: "30"
+                    - name: ALGORITHM
+                      value: "HS256"
+                    - name: DATABASE_URL
+                      value: "postgresql://powerhouse_user:securepass123@postgres:5432/powerhouse"
+                    - name: DB_HOST
+                      value: "postgres"
+                    - name: DB_PORT
+                      value: "5432"
+                    - name: DEBUG
+                      value: "True"
+                    - name: EMAIL_PROVIDER
+                      value: "smtp"
+                    - name: ENVIRONMENT
+                      value: "production"
+                    - name: JWT_SECRET_KEY
+                      value: "this_is_another_very_long_secure_key_that_is_definitely_long_enough_to_pass_validation_67890"
+                    - name: LOG_LEVEL
+                      value: "INFO"
+                    - name: NEXT_PUBLIC_API_URL
+                      value: "http://localhost:8001"
+                    - name: POSTGRES_DB
+                      value: "powerhouse"
+                    - name: POSTGRES_PASSWORD
+                      value: "securepass123"
+                    - name: POSTGRES_USER
+                      value: "powerhouse_user"
+                    - name: REDIS_HOST
+                      value: "redis"
+                    - name: REDIS_PASSWORD
+                      value: "securepass123"
+                    - name: REDIS_PORT
+                      value: "6379"
+                    - name: REDIS_URL
+                      value: "redis://default:securepass123@redis:6379/0"
+                    - name: SECRET_KEY
+                      value: "this_is_a_very_long_secure_secret_key_that_is_definitely_long_enough_to_pass_validation_12345"
+                    - name: SMTP_PORT
+                      value: "1025"
+                    - name: SMTP_SERVER
+                      value: "localhost"
+                  securityContext:
+                    runAsUser: 0
+                  livenessProbe:
+                    exec:
+                        command: ['curl -f http://localhost:8000/health']
+                    periodSeconds: 30
+                    initialDelaySeconds: 60
+                    timeoutSeconds: 10
+                    failureThreshold: 5
+                  ports:
+                    - name: backend-8000
+                      containerPort: 8000

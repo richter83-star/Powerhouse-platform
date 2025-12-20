@@ -162,8 +162,8 @@ export default function ResultsPage() {
                   <div>
                     <p className="text-sm text-gray-600 mb-2">Overall Risk Level</p>
                     <div className="flex items-center gap-2">
-                      {riskIcons?.[results?.overallRisk || 'low']}
-                      <Badge className={riskColors?.[results?.overallRisk || 'low']}>
+                      {riskIcons?.[(results?.overallRisk || 'low') as keyof typeof riskIcons]}
+                      <Badge className={riskColors?.[(results?.overallRisk || 'low') as keyof typeof riskColors]}>
                         {results?.overallRisk?.toUpperCase() || 'LOW'}
                       </Badge>
                     </div>
@@ -185,7 +185,12 @@ export default function ResultsPage() {
                 {results?.summary && (
                   <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                     <h4 className="font-semibold text-gray-900 mb-2">Executive Summary</h4>
-                    <p className="text-sm text-gray-700">{results.summary}</p>
+                    <p className="text-sm text-gray-700">
+                      {typeof results.summary === 'string' 
+                        ? results.summary 
+                        : `Total Findings: ${results.summary.totalFindings} (Critical: ${results.summary.criticalCount}, Warnings: ${results.summary.warningCount}, Info: ${results.summary.infoCount})`
+                      }
+                    </p>
                   </div>
                 )}
               </CardContent>
@@ -222,7 +227,9 @@ export default function ResultsPage() {
                             {analysis.findings.map((finding, idx) => (
                               <li key={idx} className="flex items-start gap-2 text-sm">
                                 <span className="text-blue-600 mt-1">•</span>
-                                <span className="text-gray-700">{finding}</span>
+                                <span className="text-gray-700">
+                                  {typeof finding === 'string' ? finding : finding.title || finding.description || 'Finding'}
+                                </span>
                               </li>
                             ))}
                           </ul>

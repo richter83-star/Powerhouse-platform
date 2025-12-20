@@ -148,12 +148,32 @@ function startDatabase() {
     exec('docker --version', (error) => {
       if (!error) {
         log('Using Docker for database...');
-        // Try to start from project root (where docker-compose.yml is)
-        const projectRoot = path.join(resourcesPath, '..', '..');
-        const dockerComposeFile = path.join(projectRoot, 'docker-compose.yml');
+        // Try multiple locations for docker-compose.yml
+        // 1. In resources folder (when packaged and docker-compose.yml is in extraResources)
+        // 2. Two levels up from resources (when running from source)
+        // 3. Fixed location at C:\Powerhouse-platform (when installed)
+        let projectRoot = null;
+        let dockerComposeFile = null;
         
-        if (!fs.existsSync(dockerComposeFile)) {
-          log('docker-compose.yml not found, trying portable PostgreSQL...');
+        const possibleLocations = [
+          resourcesPath, // docker-compose.yml in resources
+          path.join(resourcesPath, '..', '..'), // two levels up from resources
+          'C:\\Powerhouse-platform', // fixed installation location
+        ];
+        
+        for (const location of possibleLocations) {
+          const testFile = path.join(location, 'docker-compose.yml');
+          if (fs.existsSync(testFile)) {
+            projectRoot = location;
+            dockerComposeFile = testFile;
+            log(`Found docker-compose.yml at: ${projectRoot}`);
+            break;
+          }
+        }
+        
+        if (!dockerComposeFile) {
+          log('docker-compose.yml not found in any expected location, trying portable PostgreSQL...');
+          log(`Searched in: ${possibleLocations.join(', ')}`);
           startPortableDatabase().then(resolve);
           return;
         }

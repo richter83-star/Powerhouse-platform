@@ -1,0 +1,8 @@
+#! 0-powerhouse-platform-namespace.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: Namespace
+metadata:
+    name: powerhouse-platform
+    labels:
+        com.docker.compose.project: powerhouse-platform
