@@ -159,11 +159,16 @@ POWERHOUSE_DEBUG/
 
 ```bash
 cd backend
-venv\Scripts\activate  # Windows (activate virtual environment)
-# Or: source venv/bin/activate  # Linux/Mac
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# Linux/Mac: source .venv/bin/activate
 
-# Install dependencies (if not already done)
-pip install -r requirements.txt
+# Install dependencies (minimal set to avoid heavy ML downloads)
+pip install -r requirements-minimal.txt
+
+# Copy environment template and point the API at a local SQLite DB for quick starts
+cp .env.example .env
+export DATABASE_URL=${DATABASE_URL:-sqlite:///./powerhouse.db}
 
 # Run development server
 uvicorn api.server:app --reload --port 8001
@@ -199,7 +204,10 @@ npm run dev
 ```bash
 # Backend tests
 cd backend
-pytest tests/ -v
+pytest tests/test_api_endpoints.py -k health -v
+
+# Full suite (may require external services)
+# pytest tests/ -v
 
 # Frontend tests
 cd frontend/app
