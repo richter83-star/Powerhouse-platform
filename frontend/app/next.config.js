@@ -5,7 +5,8 @@ const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
 
   // Standalone is the most compatible for Electron packaging.
-  output: process.env.NEXT_OUTPUT_MODE || "standalone",
+  // Disable standalone mode in Docker (use default mode instead)
+  output: process.env.NEXT_OUTPUT_MODE || (process.env.DOCKER_BUILD ? undefined : "standalone"),
 
   experimental: {
     // Keep tracing rooted at repo/frontend level
