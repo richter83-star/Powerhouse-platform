@@ -36,6 +36,23 @@ class AgentStatus(str, Enum):
     FAILED = "failed"
 
 
+class AgentExecutionStatus(str, Enum):
+    """Status of an agent execution."""
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class RiskLevel(str, Enum):
+    """Risk level for compliance results."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
 # ============================================================================
 # Request Models
 # ============================================================================
@@ -133,6 +150,27 @@ class AgentExecutionDetail(BaseModel):
     duration_seconds: Optional[float] = None
 
 
+class ErrorInfo(BaseModel):
+    """Standard error details."""
+
+    message: str
+    code: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None
+
+
+class WorkflowAgentStatusSummary(BaseModel):
+    """Summary status for a workflow agent."""
+
+    agent_id: Optional[str] = None
+    agent_name: str
+    status: AgentExecutionStatus
+    step: Optional[str] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    duration_seconds: Optional[float] = None
+    error: Optional[ErrorInfo] = None
+
+
 class WorkflowStatusResponse(BaseModel):
     """Response model for workflow status."""
     
@@ -161,10 +199,42 @@ class WorkflowStatusResponse(BaseModel):
     error_message: Optional[str] = None
 
 
+class WorkflowStatusSummaryResponse(BaseModel):
+    """UI-friendly workflow status summary."""
+
+    workflow_id: str
+    status: WorkflowStatus
+    workflow_type: str
+    progress_percentage: float = Field(
+        ge=0.0,
+        le=100.0,
+        description="Workflow completion percentage"
+    )
+    progress: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Workflow completion as a 0-1 fraction"
+    )
+    current_step: str = Field(..., description="Current workflow step label")
+    agent_statuses: List[WorkflowAgentStatusSummary]
+    risk_score: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Risk score from workflow output, if available"
+    )
+    risk_level: Optional[RiskLevel] = Field(
+        default=None,
+        description="Risk level from workflow output, if available"
+    )
+    updated_at: Optional[datetime] = None
+    error: Optional[ErrorInfo] = None
+
+
 class ComplianceRiskAssessment(BaseModel):
     """Compliance risk assessment result."""
     
-    risk_level: str = Field(..., description="Overall risk level (low/medium/high/critical)")
+    risk_level: RiskLevel = Field(..., description="Overall risk level (low/medium/high/critical)")
     risk_score: float = Field(..., ge=0.0, le=1.0, description="Numerical risk score (0-1)")
     findings: List[str] = Field(..., description="List of compliance findings")
     recommendations: List[str] = Field(..., description="List of recommendations")

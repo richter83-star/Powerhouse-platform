@@ -3,6 +3,7 @@ Workflow API routes.
 """
 
 import asyncio
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
@@ -14,7 +15,10 @@ from api.models import (
     WorkflowStatusResponse,
     ComplianceResultsResponse,
     WorkflowStatus,
-    AgentExecutionDetail
+    AgentExecutionDetail,
+    WorkflowStatusSummaryResponse,
+    WorkflowAgentStatusSummary,
+    ErrorInfo
 )
 from api.auth import get_current_user
 from api.models import User
@@ -188,6 +192,142 @@ async def get_workflow_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get workflow status: {str(e)}"
+        )
+
+
+@router.get(
+    "/{workflow_id}/status-summary",
+    response_model=WorkflowStatusSummaryResponse,
+    summary="Get Workflow Status Summary",
+    description="Get a UI-friendly summary of workflow status and agent progress"
+)
+async def get_workflow_status_summary(
+    workflow_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get a UI-friendly summary of workflow progress and agent status.
+    """
+    try:
+        now = datetime.utcnow()
+        run = db.query(Run).filter(Run.id == workflow_id).first()
+
+        if not run:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Workflow {workflow_id} not found"
+            )
+
+        agent_runs = db.query(AgentRun).filter(
+            AgentRun.run_id == workflow_id
+        ).order_by(AgentRun.created_at).all()
+
+        step_labels = {
+            "governor": "Governor preflight",
+            "react": "ReAct analysis",
+            "debate": "Debate perspectives",
+            "evaluator": "Evaluator assessment"
+        }
+        step_order = list(step_labels.keys())
+        agent_run_map = {ar.agent_name: ar for ar in agent_runs}
+
+        agent_statuses = []
+        for agent_name in step_order:
+            agent_run = agent_run_map.get(agent_name)
+            duration = None
+            if agent_run and agent_run.started_at:
+                end_time = agent_run.completed_at or now
+                duration = (end_time - agent_run.started_at).total_seconds()
+
+            agent_statuses.append(
+                WorkflowAgentStatusSummary(
+                    agent_id=agent_run.id if agent_run else None,
+                    agent_name=agent_name,
+                    status=agent_run.status.value if agent_run else "pending",
+                    step=step_labels.get(agent_name),
+                    started_at=agent_run.started_at if agent_run else None,
+                    completed_at=agent_run.completed_at if agent_run else None,
+                    duration_seconds=duration,
+                    error=ErrorInfo(message=agent_run.error_message) if agent_run and agent_run.error_message else None
+                )
+            )
+
+        for agent_run in agent_runs:
+            if agent_run.agent_name in step_order:
+                continue
+            duration = None
+            if agent_run.started_at:
+                end_time = agent_run.completed_at or now
+                duration = (end_time - agent_run.started_at).total_seconds()
+
+            agent_statuses.append(
+                WorkflowAgentStatusSummary(
+                    agent_id=agent_run.id,
+                    agent_name=agent_run.agent_name,
+                    status=agent_run.status.value,
+                    step=agent_run.agent_type,
+                    started_at=agent_run.started_at,
+                    completed_at=agent_run.completed_at,
+                    duration_seconds=duration,
+                    error=ErrorInfo(message=agent_run.error_message) if agent_run.error_message else None
+                )
+            )
+
+        total_agents = len(step_order) if step_order else len(agent_statuses)
+        completed_agents = sum(1 for status in agent_statuses if status.status == "completed")
+        progress = (completed_agents / total_agents) * 100 if total_agents > 0 else 0.0
+        progress_fraction = progress / 100 if progress > 0 else 0.0
+
+        current_step = "queued"
+        if run.status == RunStatus.COMPLETED:
+            current_step = "completed"
+        elif run.status == RunStatus.FAILED:
+            current_step = "failed"
+        else:
+            running = next((status for status in agent_statuses if status.status == "running"), None)
+            if running:
+                current_step = running.step or running.agent_name
+            else:
+                pending = next((status for status in agent_statuses if status.status == "pending"), None)
+                if pending:
+                    current_step = pending.step or pending.agent_name
+                elif run.status == RunStatus.RUNNING:
+                    current_step = "finalizing"
+
+        output_data = run.output_data if isinstance(run.output_data, dict) else {}
+        risk_score = None
+        risk_level = None
+        risk_assessment = output_data.get("risk_assessment") if output_data else None
+        if isinstance(risk_assessment, dict):
+            risk_score = risk_assessment.get("risk_score")
+            risk_level = risk_assessment.get("risk_level")
+
+        workflow_type = "compliance"
+        input_data = run.input_data if isinstance(run.input_data, dict) else {}
+        if input_data:
+            workflow_type = input_data.get("type", workflow_type)
+
+        return WorkflowStatusSummaryResponse(
+            workflow_id=run.id,
+            status=WorkflowStatus(run.status.value),
+            workflow_type=workflow_type,
+            progress_percentage=progress,
+            progress=progress_fraction,
+            current_step=current_step,
+            agent_statuses=agent_statuses,
+            risk_score=risk_score,
+            risk_level=risk_level,
+            updated_at=run.updated_at,
+            error=ErrorInfo(message=run.error_message) if run.error_message else None
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get workflow status summary: {str(e)}"
         )
 
 

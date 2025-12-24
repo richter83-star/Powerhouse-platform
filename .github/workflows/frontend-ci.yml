@@ -49,6 +49,75 @@ jobs:
         NEXTAUTH_SECRET: test-secret-for-ci
         NEXT_PUBLIC_API_URL: http://localhost:8000
 
+  openapi-drift:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Detect backend API changes
+      uses: dorny/paths-filter@v3
+      id: changes
+      with:
+        filters: |
+          backend_api:
+            - 'backend/api/**'
+
+    - name: Skip drift check (no API changes)
+      if: steps.changes.outputs.backend_api != 'true'
+      run: echo "No backend API changes detected; skipping OpenAPI drift check."
+
+    - name: Set up Python
+      if: steps.changes.outputs.backend_api == 'true'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install backend dependencies
+      if: steps.changes.outputs.backend_api == 'true'
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+
+    - name: Generate OpenAPI schema
+      if: steps.changes.outputs.backend_api == 'true'
+      run: |
+        python - <<'PY'
+        import json
+        import sys
+
+        sys.path.insert(0, "backend")
+        from api.main import app
+
+        with open("/tmp/openapi.json", "w") as handle:
+            json.dump(app.openapi(), handle, indent=2, sort_keys=True)
+        PY
+
+    - name: Set up Node.js
+      if: steps.changes.outputs.backend_api == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/app/package-lock.json
+
+    - name: Install frontend dependencies
+      if: steps.changes.outputs.backend_api == 'true'
+      working-directory: ./frontend/app
+      run: npm ci
+
+    - name: Generate API types
+      if: steps.changes.outputs.backend_api == 'true'
+      working-directory: ./frontend/app
+      env:
+        OPENAPI_SCHEMA: /tmp/openapi.json
+      run: npm run generate:api
+
+    - name: Check for OpenAPI drift
+      if: steps.changes.outputs.backend_api == 'true'
+      run: git diff --exit-code frontend/app/lib/api-types.ts
+
   security-scan:
     runs-on: ubuntu-latest
     steps:

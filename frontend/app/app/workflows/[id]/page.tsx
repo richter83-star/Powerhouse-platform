@@ -86,6 +86,7 @@ export default function WorkflowStatusPage() {
     running: <Activity className="w-6 h-6 text-blue-500 animate-pulse" />,
     completed: <CheckCircle className="w-6 h-6 text-green-500" />,
     failed: <XCircle className="w-6 h-6 text-red-500" />,
+    cancelled: <XCircle className="w-6 h-6 text-gray-500" />,
   };
 
   const statusColor = {
@@ -93,9 +94,15 @@ export default function WorkflowStatusPage() {
     running: 'bg-blue-100 text-blue-800',
     completed: 'bg-green-100 text-green-800',
     failed: 'bg-red-100 text-red-800',
+    cancelled: 'bg-gray-100 text-gray-800',
   };
 
   const currentStatus = workflowStatus?.status || 'pending';
+  const progress = workflowStatus?.progress_percentage ?? 0;
+  const currentStep = workflowStatus?.current_step || 'Initializing...';
+  const agentStatuses = workflowStatus?.agent_statuses || [];
+  const riskScore = workflowStatus?.risk_score;
+  const riskLevel = workflowStatus?.risk_level;
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -140,13 +147,18 @@ export default function WorkflowStatusPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <Progress value={workflowStatus?.progress || 0} className="h-3" />
+                  <Progress value={progress} className="h-3" />
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">
-                      {workflowStatus?.currentStep || 'Initializing...'}
-                    </span>
+                    <div className="text-gray-600">
+                      <div>{currentStep}</div>
+                      {riskScore != null && (
+                        <div className="text-gray-500">
+                          Risk: {Math.round(riskScore * 100)}%{riskLevel ? ` (${riskLevel})` : ''}
+                        </div>
+                      )}
+                    </div>
                     <span className="font-semibold text-gray-900">
-                      {workflowStatus?.progress || 0}%
+                      {Math.round(progress)}%
                     </span>
                   </div>
                 </div>
@@ -154,15 +166,15 @@ export default function WorkflowStatusPage() {
             </Card>
 
             {/* Agent Statuses */}
-            {workflowStatus?.agentStatuses && workflowStatus.agentStatuses.length > 0 && (
+            {agentStatuses.length > 0 && (
               <Card className="mb-8">
                 <CardHeader>
                   <CardTitle>Agent Activity</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {workflowStatus.agentStatuses.map((agent, index) => (
-                      <div key={agent?.agentId || index} className="border rounded-lg p-4">
+                    {agentStatuses.map((agent, index) => (
+                      <div key={`${agent?.agent_name || 'agent'}-${index}`} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -170,16 +182,17 @@ export default function WorkflowStatusPage() {
                             </div>
                             <div>
                               <h4 className="font-semibold text-gray-900">
-                                {agent?.agentName || 'Unknown Agent'}
+                                {agent?.step || agent?.agent_name || 'Unknown Agent'}
                               </h4>
-                              <p className="text-sm text-gray-500">{agent?.status || 'idle'}</p>
+                              <p className="text-sm text-gray-500">{agent?.status || 'pending'}</p>
                             </div>
                           </div>
-                          <span className="text-sm font-semibold text-gray-900">
-                            {agent?.progress || 0}%
-                          </span>
+                          {agent?.duration_seconds != null && (
+                            <span className="text-sm font-semibold text-gray-900">
+                              {Math.round(agent.duration_seconds)}s
+                            </span>
+                          )}
                         </div>
-                        <Progress value={agent?.progress || 0} className="h-2" />
                       </div>
                     ))}
                   </div>

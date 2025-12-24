@@ -139,6 +139,84 @@ curl -X GET http://localhost:8001/api/v1/workflows/wf_abc123/status \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
+### Workflow Status Summary (Canonical UI Contract)
+
+Use the status summary endpoint for UI-friendly progress and agent status data.
+
+```bash
+curl -X GET http://localhost:8001/api/v1/workflows/wf_abc123/status-summary \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Example Response:**
+```json
+{
+  "workflow_id": "wf_abc123",
+  "status": "running",
+  "workflow_type": "compliance",
+  "progress_percentage": 50,
+  "progress": 0.5,
+  "current_step": "Debate perspectives",
+  "agent_statuses": [
+    {
+      "agent_id": "9f5aa831-6202-46d8-8eb1-6fcd3d12f50d",
+      "agent_name": "governor",
+      "status": "completed",
+      "step": "Governor preflight",
+      "started_at": "2025-01-15T12:33:10Z",
+      "completed_at": "2025-01-15T12:33:12Z",
+      "duration_seconds": 2.1,
+      "error": null
+    },
+    {
+      "agent_id": "e7b7221b-ff0f-4db6-8bdb-88c4e3dbf26a",
+      "agent_name": "react",
+      "status": "completed",
+      "step": "ReAct analysis",
+      "started_at": "2025-01-15T12:33:12Z",
+      "completed_at": "2025-01-15T12:33:30Z",
+      "duration_seconds": 18.4,
+      "error": null
+    },
+    {
+      "agent_id": "4b8334f3-4459-4026-9f3d-8c42f1ad1df8",
+      "agent_name": "debate",
+      "status": "running",
+      "step": "Debate perspectives",
+      "started_at": "2025-01-15T12:33:30Z",
+      "completed_at": null,
+      "duration_seconds": 5.4,
+      "error": null
+    },
+    {
+      "agent_id": null,
+      "agent_name": "evaluator",
+      "status": "pending",
+      "step": "Evaluator assessment",
+      "started_at": null,
+      "completed_at": null,
+      "duration_seconds": null,
+      "error": null
+    }
+  ],
+  "risk_score": 0.32,
+  "risk_level": "medium",
+  "updated_at": "2025-01-15T12:33:35Z",
+  "error": null
+}
+```
+
+**Field meanings:**
+- `progress_percentage`: 0-100 completion percentage for the workflow.
+- `progress`: 0-1 completion fraction (canonical for clients that prefer ratios).
+- `current_step`: Human-readable label for the currently running or next step.
+- `agent_statuses`: Ordered list of per-agent status summaries.
+- `agent_statuses[].error`: Optional error object if an agent run failed.
+- `risk_score`: Optional numeric score (0-1) if workflow results include risk assessment.
+- `risk_level`: Optional qualitative level paired with `risk_score`.
+- `updated_at`: Last update timestamp for the workflow record.
+- `error`: Optional error object when the workflow fails.
+
 ### Getting Workflow Results
 
 ```bash
@@ -301,7 +379,7 @@ def wait_for_workflow_completion(workflow_id, max_wait=600):
     start_time = time.time()
     while time.time() - start_time < max_wait:
         response = requests.get(
-            f"{base_url}/api/v1/workflows/{workflow_id}/status",
+            f"{base_url}/api/v1/workflows/{workflow_id}/status-summary",
             headers=headers
         )
         status = response.json()["status"]
@@ -315,6 +393,21 @@ def wait_for_workflow_completion(workflow_id, max_wait=600):
     
     return False
 ```
+
+## OpenAPI Types (Frontend)
+
+Generate frontend API types after changing backend API models or routes:
+
+```bash
+cd frontend/app
+npm run generate:api
+```
+
+**Expected output files:**
+- `frontend/app/lib/api-types.ts`
+
+By default the generator reads `http://localhost:8001/openapi.json`. Override with
+`OPENAPI_SCHEMA=/path/to/openapi.json` if you want to generate from a file.
 
 ## Code Examples
 

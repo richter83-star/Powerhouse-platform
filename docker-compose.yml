@@ -1,4 +1,4 @@
-services:
+﻿services:
   # PostgreSQL
   postgres:
     image: postgres:15-alpine
@@ -36,6 +36,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: powerhouse_backend
+    env_file:
+      - ./.env
     environment:
       POSTGRES_USER: "powerhouse_user"
       POSTGRES_PASSWORD: "securepass123"
@@ -51,14 +53,12 @@ services:
       REDIS_PASSWORD: "securepass123"
       
       # Security
-      SECRET_KEY: "this_is_a_very_long_secure_secret_key_that_is_definitely_long_enough_to_pass_validation_12345"
-      JWT_SECRET_KEY: "this_is_another_very_long_secure_key_that_is_definitely_long_enough_to_pass_validation_67890"
       ALGORITHM: "HS256"
       ACCESS_TOKEN_EXPIRE_MINUTES: 30
       
       # System
       ENVIRONMENT: "production"
-      DEBUG: "True"
+      DEBUG: ${DEBUG:-False}
       LOG_LEVEL: "INFO"
       EMAIL_PROVIDER: "smtp"
       SMTP_SERVER: "localhost"
@@ -88,9 +88,10 @@ services:
   frontend:
     build: ./frontend/app
     container_name: powerhouse_frontend
+    env_file:
+      - ./.env
     environment:
       DATABASE_URL: "postgresql://powerhouse_user:securepass123@postgres:5432/powerhouse"
-      NEXTAUTH_SECRET: "this_is_a_very_long_secure_secret_key_that_is_definitely_long_enough_to_pass_validation_12345"
       NEXTAUTH_URL: "http://localhost:3000"
       NEXT_PUBLIC_API_URL: "http://localhost:8001"
       BACKEND_INTERNAL_URL: "http://backend:8000"

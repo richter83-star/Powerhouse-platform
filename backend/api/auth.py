@@ -16,7 +16,7 @@ from api.models import TokenData, User
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Security schemes
-bearer_scheme = HTTPBearer()
+bearer_scheme = HTTPBearer(auto_error=False)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
@@ -101,13 +101,16 @@ def decode_access_token(token: str) -> TokenData:
 # ============================================================================
 
 async def get_current_user_from_token(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)
-) -> User:
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
+) -> Optional[User]:
     """
     Get current user from JWT token.
     
     Queries the database for user details based on token claims.
     """
+    if credentials is None:
+        return None
+
     token = credentials.credentials
     token_data = decode_access_token(token)
     
@@ -130,8 +133,6 @@ async def get_current_user_from_token(
         except (ValueError, AttributeError):
             pass
     
-    db.close()
-    
     if not user_db:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -142,8 +143,6 @@ async def get_current_user_from_token(
         tenant_id=token_data.tenant_id or "default-tenant",
         disabled=user_db.disabled if hasattr(user_db, 'disabled') else False
     )
-    
-    db.close()
     
     if user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
@@ -167,13 +166,17 @@ async def verify_api_key(
         HTTPException: If API key is invalid
     """
     if api_key is None:
+        return None
+    
+    api_keys = getattr(settings, "api_keys", [])
+    if not api_keys:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key is missing",
+            detail="API key authentication is not configured",
             headers={"WWW-Authenticate": "ApiKey"},
         )
     
-    if api_key not in settings.api_keys:
+    if api_key not in api_keys:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key",
@@ -290,7 +293,16 @@ async def get_optional_user(
             from database.session import get_db
             from database.models import User as DBUser
             db = next(get_db())
-            user_db = db.query(DBUser).filter(DBUser.id == token_data.user_id).first()
+            user_db = None
+            if token_data.username:
+                user_db = db.query(DBUser).filter(DBUser.email == token_data.username).first()
+            if not user_db and token_data.username:
+                try:
+                    import uuid
+                    uuid.UUID(token_data.username)
+                    user_db = db.query(DBUser).filter(DBUser.id == token_data.username).first()
+                except (ValueError, AttributeError):
+                    pass
             db.close()
             
             if user_db:

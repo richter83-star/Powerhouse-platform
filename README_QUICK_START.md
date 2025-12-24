@@ -68,7 +68,4 @@ docker-compose restart backend
 - **Backend API:** http://localhost:8001
 - **Health Check:** http://localhost:8001/health
 
-## 📁 File Organization
-
-Old/redundant files have been moved to `scripts/archive/` for reference.
 

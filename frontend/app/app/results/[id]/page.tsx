@@ -98,6 +98,10 @@ export default function ResultsPage() {
     critical: <AlertTriangle className="w-5 h-5 text-red-600" />,
   };
 
+  const riskLevel = results?.risk_assessment?.risk_level || 'low';
+  const riskScoreRaw = results?.risk_assessment?.risk_score ?? 0;
+  const riskScorePercent = Math.round(riskScoreRaw * 100);
+
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -162,116 +166,123 @@ export default function ResultsPage() {
                   <div>
                     <p className="text-sm text-gray-600 mb-2">Overall Risk Level</p>
                     <div className="flex items-center gap-2">
-                      {riskIcons?.[(results?.overallRisk || 'low') as keyof typeof riskIcons]}
-                      <Badge className={riskColors?.[(results?.overallRisk || 'low') as keyof typeof riskColors]}>
-                        {results?.overallRisk?.toUpperCase() || 'LOW'}
+                      {riskIcons?.[riskLevel as keyof typeof riskIcons]}
+                      <Badge className={riskColors?.[riskLevel as keyof typeof riskColors]}>
+                        {riskLevel.toUpperCase()}
                       </Badge>
                     </div>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 mb-2">Risk Score</p>
                     <p className="text-3xl font-bold text-gray-900">
-                      {results?.riskScore || 0}/100
+                      {riskScorePercent}/100
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 mb-2">Analysis Date</p>
                     <p className="text-sm font-medium text-gray-900">
-                      {results?.timestamp ? new Date(results.timestamp).toLocaleString() : 'N/A'}
+                      {results?.completed_at
+                        ? new Date(results.completed_at).toLocaleString()
+                        : results?.created_at
+                          ? new Date(results.created_at).toLocaleString()
+                          : 'N/A'}
                     </p>
                   </div>
                 </div>
                 
-                {results?.summary && (
+                {results?.analysis?.summary && (
                   <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                     <h4 className="font-semibold text-gray-900 mb-2">Executive Summary</h4>
-                    <p className="text-sm text-gray-700">
-                      {typeof results.summary === 'string' 
-                        ? results.summary 
-                        : `Total Findings: ${results.summary.totalFindings} (Critical: ${results.summary.criticalCount}, Warnings: ${results.summary.warningCount}, Info: ${results.summary.infoCount})`
-                      }
-                    </p>
+                    <p className="text-sm text-gray-700">{results.analysis.summary}</p>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Agent Analyses */}
-            {results?.agentAnalyses && results.agentAnalyses.length > 0 && (
-              <div className="mb-8 space-y-6">
-                <h2 className="text-2xl font-bold text-gray-900">Agent Analyses</h2>
-                {results.agentAnalyses.map((analysis, index) => (
-                  <Card key={analysis?.agentId || index}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                          <span className="text-purple-600 text-sm font-bold">
-                            {analysis?.agentName?.charAt(0) || 'A'}
-                          </span>
-                        </div>
-                        {analysis?.agentName || 'Unknown Agent'}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {analysis?.analysis && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Analysis</h4>
-                          <p className="text-sm text-gray-700">{analysis.analysis}</p>
-                        </div>
-                      )}
-                      
-                      {analysis?.findings && analysis.findings.length > 0 && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Key Findings</h4>
-                          <ul className="space-y-2">
-                            {analysis.findings.map((finding, idx) => (
-                              <li key={idx} className="flex items-start gap-2 text-sm">
-                                <span className="text-blue-600 mt-1">•</span>
-                                <span className="text-gray-700">
-                                  {typeof finding === 'string' ? finding : finding.title || finding.description || 'Finding'}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      
-                      {analysis?.recommendations && analysis.recommendations.length > 0 && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Recommendations</h4>
-                          <ul className="space-y-2">
-                            {analysis.recommendations.map((rec, idx) => (
-                              <li key={idx} className="flex items-start gap-2 text-sm">
-                                <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                                <span className="text-gray-700">{rec}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+            {/* Findings and Recommendations */}
+            {(results?.risk_assessment?.findings?.length || results?.risk_assessment?.recommendations?.length) && (
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle>Findings & Recommendations</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {results?.risk_assessment?.findings && results.risk_assessment.findings.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-2">Findings</h4>
+                      <ul className="space-y-2">
+                        {results.risk_assessment.findings.map((finding, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm">
+                            <span className="text-blue-600 mt-1">•</span>
+                            <span className="text-gray-700">{finding}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {results?.risk_assessment?.recommendations && results.risk_assessment.recommendations.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-2">Recommendations</h4>
+                      <ul className="space-y-2">
+                        {results.risk_assessment.recommendations.map((rec, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm">
+                            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                            <span className="text-gray-700">{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
-            {/* Overall Recommendations */}
-            {results?.recommendations && results.recommendations.length > 0 && (
+            {(results?.analysis?.obligations?.length || results?.analysis?.gaps?.length) && (
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle>Obligations & Gaps</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {results?.analysis?.obligations && results.analysis.obligations.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-2">Obligations</h4>
+                      <ul className="space-y-2">
+                        {results.analysis.obligations.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm">
+                            <span className="text-blue-600 mt-1">•</span>
+                            <span className="text-gray-700">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {results?.analysis?.gaps && results.analysis.gaps.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-2">Gaps</h4>
+                      <ul className="space-y-2">
+                        {results.analysis.gaps.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm">
+                            <span className="text-blue-600 mt-1">•</span>
+                            <span className="text-gray-700">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {results?.compliance_report && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Overall Recommendations</CardTitle>
+                  <CardTitle>Compliance Report</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="space-y-3">
-                    {results.recommendations.map((rec, idx) => (
-                      <li key={idx} className="flex items-start gap-3">
-                        <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <span className="text-white text-xs font-bold">{idx + 1}</span>
-                        </div>
-                        <p className="text-sm text-gray-700">{rec}</p>
-                      </li>
-                    ))}
-                  </ul>
+                  <pre className="whitespace-pre-wrap text-sm text-gray-700">
+                    {results.compliance_report}
+                  </pre>
                 </CardContent>
               </Card>
             )}

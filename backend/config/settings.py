@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     )
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
+    api_keys: list[str] = Field(
+        default_factory=list,
+        description="Allowed API keys for X-API-Key authentication"
+    )
 
     # =====================================================================================
     # Database Connection

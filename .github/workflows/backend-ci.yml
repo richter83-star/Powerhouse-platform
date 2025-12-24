@@ -65,6 +65,17 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # Exit-zero treats all errors as warnings
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Run smoke tests
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/powerhouse_test
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+        JWT_SECRET: test-secret-key-for-ci
+        ENCRYPTION_KEY: test-encryption-key-32-chars-long!!
+      run: |
+        pytest tests/test_smoke.py -v
     
     - name: Run tests
       working-directory: ./backend
