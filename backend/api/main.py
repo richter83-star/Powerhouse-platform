@@ -65,8 +65,8 @@ try:
 except ImportError:
     HAS_OBSERVABILITY_ROUTES = False
 
-from database.session import get_engine
-from database.models import Base
+from database.session import get_engine, get_session
+from database.models import Base, Tenant
 # Import new models to ensure they're registered with Base.metadata
 try:
     from core.services.email_queue import EmailQueue
@@ -171,6 +171,24 @@ async def lifespan(app: FastAPI):
                 logger.warning(f"Database optimization failed (non-critical): {e}")
     except Exception as e:
         logger.error(f"Failed to create database tables: {e}")
+    # Ensure a default tenant exists for single-tenant flows
+    try:
+        db = get_session()
+        try:
+            default_tenant = db.query(Tenant).filter(Tenant.id == "default").first()
+            if not default_tenant:
+                default_tenant = Tenant(
+                    id="default",
+                    name="Default Tenant",
+                    meta_data={"type": "default"}
+                )
+                db.add(default_tenant)
+                db.commit()
+                logger.info("Created default tenant")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Failed to ensure default tenant exists: {e}")
     
     # Initialize online learning (if Kafka is enabled)
     from config.kafka_config import kafka_config
