@@ -174,8 +174,12 @@ class NeurosymbolicReasoner:
         Returns:
             List of (entity, similarity) tuples
         """
-        if not isinstance(embedding, np.ndarray):
+        try:
             import numpy as np
+        except ImportError as exc:
+            raise RuntimeError("numpy is required for embedding search") from exc
+
+        if not isinstance(embedding, np.ndarray):
             embedding = np.array(embedding)
         
         return self.kg.get_entities_by_similarity(embedding, entity_type, top_k)

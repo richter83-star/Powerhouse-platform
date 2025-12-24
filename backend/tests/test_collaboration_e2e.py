@@ -82,6 +82,8 @@ class TestMultiAgentCollaboration:
     def test_collaborative_vs_sequential_performance(self, mock_communication_protocol):
         """Compare collaborative vs sequential performance."""
         import time
+        from core.orchestrator import Orchestrator
+        from core.orchestrator_with_communication import OrchestratorWithCommunication
         
         # Mock agents
         def agent_with_delay(context):

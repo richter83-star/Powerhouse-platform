@@ -12,6 +12,9 @@ from core.learning.reinforcement_learning import (
     ParameterOptimizerRL,
     ParameterQNetwork,
     ParameterPolicyNetwork,
+    ExperienceReplayBuffer,
+    PolicyNetwork,
+    ValueNetwork,
     RLState,
     RLAction,
     RLReward

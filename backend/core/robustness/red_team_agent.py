@@ -14,6 +14,11 @@ from llm.base import BaseLLMProvider
 from llm.config import LLMConfig
 from utils.logging import get_logger
 
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
 logger = get_logger(__name__)
 
 
@@ -143,6 +148,8 @@ class RedTeamAgent:
         # Generate adversarial example
         # Simplified: would use actual model
         try:
+            if np is None:
+                raise RuntimeError("numpy is required for adversarial attacks")
             # Mock input
             input_data = np.random.randn(10)
             adversarial_example = self.adversarial_generator.generate(

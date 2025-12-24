@@ -8,7 +8,7 @@ import logging
 import uuid
 import json
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import Column, String, Integer, DateTime, Text, JSON, ForeignKey, Boolean
 from database.models import Base, User, Tenant

@@ -8,6 +8,7 @@ LLM parameters and agent selection policies.
 from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
 from datetime import datetime
+import random
 import numpy as np
 from collections import deque, defaultdict
 
@@ -79,6 +80,34 @@ class RLReward:
                 self.latency_penalty * 0.2 -
                 self.cost_penalty * 0.1
             )
+
+
+class ExperienceReplayBuffer:
+    """Simple experience replay buffer for off-policy RL."""
+
+    def __init__(self, capacity: int = 10000) -> None:
+        self._buffer = deque(maxlen=capacity)
+
+    def add(self, state: np.ndarray, action: Any, reward: float, next_state: np.ndarray, done: bool) -> None:
+        """Add a transition to the buffer."""
+        self._buffer.append(
+            {
+                "state": state,
+                "action": action,
+                "reward": reward,
+                "next_state": next_state,
+                "done": done,
+            }
+        )
+
+    def sample(self, batch_size: int) -> List[Dict[str, Any]]:
+        """Sample a batch of transitions."""
+        if batch_size <= 0:
+            return []
+        return random.sample(self._buffer, min(batch_size, len(self._buffer)))
+
+    def __len__(self) -> int:
+        return len(self._buffer)
 
 
 if TORCH_AVAILABLE:
@@ -164,6 +193,56 @@ if TORCH_AVAILABLE:
 else:
     # Dummy class when PyTorch is not available
     class ParameterPolicyNetwork:
+        pass
+
+
+if TORCH_AVAILABLE:
+    class PolicyNetwork(nn.Module):
+        """Policy network for discrete action selection."""
+
+        def __init__(self, state_dim: int, action_dim: int, hidden_dims: List[int] = [64, 32]):
+            super().__init__()
+            layers = []
+            prev_dim = state_dim
+
+            for hidden_dim in hidden_dims:
+                layers.append(nn.Linear(prev_dim, hidden_dim))
+                layers.append(nn.ReLU())
+                prev_dim = hidden_dim
+
+            layers.append(nn.Linear(prev_dim, action_dim))
+            self.network = nn.Sequential(*layers)
+            self.softmax = nn.Softmax(dim=-1)
+
+        def forward(self, state: torch.Tensor) -> torch.Tensor:
+            logits = self.network(state)
+            return self.softmax(logits)
+else:
+    class PolicyNetwork:
+        pass
+
+
+if TORCH_AVAILABLE:
+    class ValueNetwork(nn.Module):
+        """Value network for state-value estimation."""
+
+        def __init__(self, state_dim: int, hidden_dims: List[int] = [64, 32]):
+            super().__init__()
+            layers = []
+            prev_dim = state_dim
+
+            for hidden_dim in hidden_dims:
+                layers.append(nn.Linear(prev_dim, hidden_dim))
+                layers.append(nn.ReLU())
+                prev_dim = hidden_dim
+
+            layers.append(nn.Linear(prev_dim, 1))
+            self.network = nn.Sequential(*layers)
+
+        def forward(self, state: torch.Tensor) -> torch.Tensor:
+            return self.network(state)
+else:
+    class ValueNetwork:
         pass
 
 

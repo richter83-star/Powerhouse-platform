@@ -114,7 +114,7 @@ async def deploy_learning_system(request: DeployRequest):
 @router.post('/start')
 async def start_learning(request: StartLearningRequest, background_tasks: BackgroundTasks):
     """Start the exponential learning loop."""
-    global _coordinator, _learning_thread, _learning_active, _last_report
+    global _learning_active, _last_report
     
     if not _coordinator:
         raise HTTPException(status_code=400, detail='System not deployed. Call /deploy first.')
@@ -177,8 +177,6 @@ async def start_learning(request: StartLearningRequest, background_tasks: Backgr
 @router.get('/status')
 async def get_status():
     """Get current learning system status."""
-    global _coordinator, _learning_active
-    
     if not _coordinator:
         return {
             'status': 'not_deployed',
@@ -198,8 +196,6 @@ async def get_status():
 @router.get('/stats')
 async def get_stats():
     """Get detailed learning statistics."""
-    global _coordinator
-    
     if not _coordinator:
         raise HTTPException(status_code=400, detail='System not deployed')
     
@@ -216,8 +212,6 @@ async def get_stats():
 @router.get('/report')
 async def get_report():
     """Get the last learning report."""
-    global _last_report
-    
     if not _last_report:
         raise HTTPException(status_code=404, detail='No learning report available')
     
@@ -230,8 +224,6 @@ async def get_report():
 @router.get('/plugins/list')
 async def list_plugins():
     """List available learning data plugins."""
-    global _coordinator
-    
     if not _coordinator:
         raise HTTPException(status_code=400, detail='System not deployed')
     
@@ -247,8 +239,6 @@ async def list_plugins():
 @router.post('/plugins/generate')
 async def generate_tasks(request: GenerateTasksRequest):
     """Generate training tasks from plugins."""
-    global _coordinator
-    
     if not _coordinator:
         raise HTTPException(status_code=400, detail='System not deployed')
     

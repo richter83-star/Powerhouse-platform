@@ -10,7 +10,8 @@ from core.learning.training_pipeline import (
 TrainingPipeline = ModelTrainingPipeline
 from core.learning.reinforcement_learning import (
     ParameterOptimizerRL, RLState, RLAction, RLReward,
-    ParameterQNetwork, ParameterPolicyNetwork
+    ParameterQNetwork, ParameterPolicyNetwork,
+    ExperienceReplayBuffer, PolicyNetwork, ValueNetwork
 )
 
 from core.learning.external_memory import ExternalMemoryBank, MemorySlot
@@ -37,6 +38,9 @@ __all__ = [
     "RLReward",
     "ParameterQNetwork",
     "ParameterPolicyNetwork",
+    "ExperienceReplayBuffer",
+    "PolicyNetwork",
+    "ValueNetwork",
     "ExternalMemoryBank",
     "MemorySlot",
     "MemoryController",

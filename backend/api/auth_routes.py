@@ -2,6 +2,7 @@
 """
 Authentication and authorization API routes.
 """
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
@@ -25,6 +26,7 @@ from sqlalchemy.orm import Session
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 security = HTTPBearer()
 auth_manager = JWTAuthManager()
+logger = logging.getLogger(__name__)
 
 # Request/Response Models
 class LoginRequest(BaseModel):

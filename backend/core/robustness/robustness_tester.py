@@ -2,7 +2,7 @@
 Robustness Tester: Evaluates system resilience under adversarial conditions.
 """
 
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional, Any, Callable, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
 import numpy as np
