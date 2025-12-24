@@ -1,1 +1,4 @@
-class Agent:\n    def run(self, context):\n        return \"reflection processed: \" + context.get('task','')\n
+class Agent:
+    def run(self, context):
+        return "reflection processed: " + context.get('task','')
+

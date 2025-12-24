@@ -1,1 +1,4 @@
-class Agent:\n    def run(self, context):\n        return \"tree_of_thought processed: \" + context.get('task','')\n
+class Agent:
+    def run(self, context):
+        return "tree_of_thought processed: " + context.get('task','')
+

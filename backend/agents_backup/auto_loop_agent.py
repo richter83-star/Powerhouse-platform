@@ -1,1 +1,4 @@
-class Agent:\n    def run(self, context):\n        return \"auto_loop_agent processed: \" + context.get('task','')\n
+class Agent:
+    def run(self, context):
+        return "auto_loop_agent processed: " + context.get('task','')
+
