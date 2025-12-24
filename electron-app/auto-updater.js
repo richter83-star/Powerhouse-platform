@@ -118,6 +118,19 @@ function isNewerVersion(newVersion, currentVersion) {
 }
 
 /**
+ * Sanitize version string for safe use in file paths
+ */
+function sanitizeVersion(version) {
+  const v = String(version);
+  // Allow only alphanumerics, dot, underscore and hyphen
+  const sanitized = v.replace(/[^0-9A-Za-z._-]/g, '');
+  if (!sanitized) {
+    throw new Error('Invalid update version string');
+  }
+  return sanitized;
+}
+
+/**
  * Prompt user to update
  */
 async function promptUpdate(updateInfo) {
@@ -147,10 +160,19 @@ async function promptUpdate(updateInfo) {
  * Download and install update
  */
 async function downloadUpdate(updateInfo) {
-  const downloadPath = path.join(app.getPath('temp'), `Powerhouse-Setup-${updateInfo.version}.exe`);
+  const tempDir = app.getPath('temp');
+  const sanitizedVersion = sanitizeVersion(updateInfo.version);
+  const downloadPath = path.join(tempDir, `Powerhouse-Setup-${sanitizedVersion}.exe`);
   
+  // Ensure the resolved path is within the temp directory
+  const resolvedDownloadPath = path.resolve(downloadPath);
+  if (!resolvedDownloadPath.startsWith(path.resolve(tempDir) + path.sep) &&
+      resolvedDownloadPath !== path.resolve(tempDir)) {
+    throw new Error('Resolved download path is outside the temp directory');
+  }
+
   return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(downloadPath);
+    const file = fs.createWriteStream(resolvedDownloadPath);
     
     https.get(updateInfo.downloadUrl, (response) => {
       if (response.statusCode !== 200) {
@@ -181,7 +203,7 @@ async function downloadUpdate(updateInfo) {
           buttons: ['OK']
         }).then(() => {
           // Launch installer
-          spawn(downloadPath, [], {
+          spawn(resolvedDownloadPath, [], {
             detached: true,
             stdio: 'ignore'
           }).unref();
@@ -193,11 +215,11 @@ async function downloadUpdate(updateInfo) {
       });
       
       file.on('error', (error) => {
-        fs.unlink(downloadPath, () => {});
+        fs.unlink(resolvedDownloadPath, () => {});
         reject(error);
       });
     }).on('error', (error) => {
-      fs.unlink(downloadPath, () => {});
+      fs.unlink(resolvedDownloadPath, () => {});
       reject(error);
     });
   });
