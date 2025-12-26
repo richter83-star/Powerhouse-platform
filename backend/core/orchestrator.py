@@ -90,6 +90,9 @@ class Orchestrator:
         mem = next((a for a in self.agents if a.__class__.__name__ == "AdaptiveMemoryAgent"), None)
         if mem:
             context["state"]["memory"] = mem.load()
+        meta_memory = next((a for a in self.agents if a.__class__.__name__ == "MetaMemoryAgent"), None)
+        if meta_memory:
+            context["state"]["meta_memory"] = meta_memory
 
         # Execute agents sequentially
         for agent in self.agents:
@@ -105,6 +108,19 @@ class Orchestrator:
                 })
                 if mem:
                     mem.update(context, out)
+                if meta_memory:
+                    meta_memory.add_memory(
+                        content=str(out),
+                        tags=["agent_output"],
+                        metadata={"agent_name": agent.__class__.__name__, "task": task}
+                    )
+                    if hasattr(agent, "reflect"):
+                        reflection = agent.reflect({"task": task, "status": "success"})
+                        meta_memory.add_memory(
+                            content=reflection,
+                            tags=["reflection"],
+                            metadata={"agent_name": agent.__class__.__name__, "task": task}
+                        )
             except Exception as e:
                 logger.error(f"Agent {agent.__class__.__name__} failed: {e}", exc_info=True)
                 context["outputs"].append({
@@ -121,6 +137,13 @@ class Orchestrator:
         evalr = next((a for a in self.agents if a.__class__.__name__ == "EvaluatorAgent"), None)
         if evalr:
             context["evaluation"] = evalr.evaluate(context)
+            if meta_memory:
+                meta_memory.add_memory(
+                    content=f"Evaluation summary: {context['evaluation']}",
+                    tags=["evaluation"],
+                    metadata={"task": task, "agent_name": "EvaluatorAgent"},
+                    evaluation=context["evaluation"]
+                )
 
         meta = next((a for a in self.agents if a.__class__.__name__ == "MetaEvolverAgent"), None)
         if meta:
@@ -157,6 +180,9 @@ class Orchestrator:
         mem = next((a for a in self.agents if a.__class__.__name__ == "AdaptiveMemoryAgent"), None)
         if mem:
             context["state"]["memory"] = mem.load()
+        meta_memory = next((a for a in self.agents if a.__class__.__name__ == "MetaMemoryAgent"), None)
+        if meta_memory:
+            context["state"]["meta_memory"] = meta_memory
 
         # Group agents by execution constraints
         sequential_agents = []
@@ -183,6 +209,19 @@ class Orchestrator:
                 })
                 if mem:
                     mem.update(context, out)
+                if meta_memory:
+                    meta_memory.add_memory(
+                        content=str(out),
+                        tags=["agent_output"],
+                        metadata={"agent_name": agent.__class__.__name__, "task": task}
+                    )
+                    if hasattr(agent, "reflect"):
+                        reflection = agent.reflect({"task": task, "status": "success"})
+                        meta_memory.add_memory(
+                            content=reflection,
+                            tags=["reflection"],
+                            metadata={"agent_name": agent.__class__.__name__, "task": task}
+                        )
             except Exception as e:
                 logger.error(f"Agent {agent.__class__.__name__} failed: {e}", exc_info=True)
                 context["outputs"].append({
@@ -223,11 +262,24 @@ class Orchestrator:
                 context["outputs"].append(result)
                 if mem and result["status"] == "success":
                     mem.update(context, result["output"])
+                if meta_memory and result["status"] == "success":
+                    meta_memory.add_memory(
+                        content=str(result["output"]),
+                        tags=["agent_output"],
+                        metadata={"agent_name": result["agent"], "task": task}
+                    )
 
         # Post-processing (sequential)
         evalr = next((a for a in self.agents if a.__class__.__name__ == "EvaluatorAgent"), None)
         if evalr:
             context["evaluation"] = evalr.evaluate(context)
+            if meta_memory:
+                meta_memory.add_memory(
+                    content=f"Evaluation summary: {context['evaluation']}",
+                    tags=["evaluation"],
+                    metadata={"task": task, "agent_name": "EvaluatorAgent"},
+                    evaluation=context["evaluation"]
+                )
 
         meta = next((a for a in self.agents if a.__class__.__name__ == "MetaEvolverAgent"), None)
         if meta:

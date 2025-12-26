@@ -206,6 +206,12 @@ Action Input: [Your final answer to the task]
         
         # Last resort: return the thought itself
         return thought
+
+    def reflect(self, context: Dict[str, Any]) -> str:
+        task = context.get("task", "")
+        outcome = context.get("status", "success")
+        lesson = "Balance tool usage with direct reasoning to reduce latency."
+        return f"Reflection: ReAct {outcome} on '{task}'. Lesson learned: {lesson}"
     
     def _synthesize_answer(self, task: str, history: list) -> str:
         """Synthesize answer from history when max iterations reached."""

@@ -45,6 +45,9 @@ class ExampleAgent(BaseAgent):
             }
         }
 
+    def reflect(self, context: Dict[str, Any]) -> str:
+        return "Reflection: example agent completed. Lesson learned: keep outputs concise."
+
 
 async def example_single_dispatch():
     """Example: Single agent dispatch with outcome tracking."""

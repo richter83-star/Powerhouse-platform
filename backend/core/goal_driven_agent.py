@@ -22,6 +22,16 @@ from core.forecasting_engine import ForecastingEngine
 from core.autonomous_goal_executor import AutonomousGoalExecutor, ExecutionStrategy
 from core.proactive_goal_setter import Goal, GoalType, GoalStatus, GoalPriority
 
+try:
+    from agents.memory_agent import MetaMemoryAgent
+except Exception:
+    MetaMemoryAgent = None
+
+try:
+    from agents.evaluator_agent import EvaluatorAgent
+except Exception:
+    EvaluatorAgent = None
+
 logger = get_logger(__name__)
 
 
@@ -53,6 +63,24 @@ class GoalDrivenAgent:
         
         # Initialize goal executor
         self.executor = AutonomousGoalExecutor(executor_config)
+
+        # Optional cognitive components
+        self.meta_memory_agent = self.config.get("meta_memory_agent")
+        if not self.meta_memory_agent and MetaMemoryAgent and self.config.get("enable_memory", True):
+            self.meta_memory_agent = MetaMemoryAgent()
+
+        self.evaluator_agent = self.config.get("evaluator_agent")
+        if not self.evaluator_agent and EvaluatorAgent and self.config.get("enable_evaluation", True):
+            self.evaluator_agent = EvaluatorAgent()
+
+        if self.meta_memory_agent:
+            self.executor.set_meta_memory_agent(self.meta_memory_agent)
+        if self.evaluator_agent:
+            self.executor.set_evaluator(self.evaluator_agent)
+        if self.config.get("meta_evolver"):
+            self.executor.set_meta_evolver(self.config.get("meta_evolver"))
+        if self.config.get("context_agents"):
+            self.executor.set_context_agents(self.config.get("context_agents"))
         
         # Configuration
         self.autonomous_mode = self.config.get("autonomous_mode", True)
@@ -251,6 +279,13 @@ class GoalDrivenAgent:
             
             for goal in new_goals:
                 try:
+                    if self.meta_memory_agent:
+                        memories = self.meta_memory_agent.retrieve(
+                            f"How to approach goal: {goal.description}",
+                            top_k=3,
+                            min_score=0.1
+                        )
+                        goal.metadata["memory_context"] = [m.get("content") for m in memories]
                     self.executor.schedule_goal(goal)
                     with self.lock:
                         self.stats["goals_executed"] += 1
@@ -260,6 +295,10 @@ class GoalDrivenAgent:
             
         except Exception as e:
             logger.error(f"Error syncing goals: {e}", exc_info=True)
+
+    def reflect(self, context: Dict[str, Any]) -> str:
+        lesson = "Keep goal metadata aligned with memory context to improve planning."
+        return f"Reflection: GoalDrivenAgent cycle completed. Lesson learned: {lesson}"
     
     def _update_goal_progress(self):
         """Update goal progress based on execution results."""

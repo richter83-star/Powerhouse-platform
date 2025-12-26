@@ -9,6 +9,7 @@ from .base import BaseLLMProvider
 from .openai_provider import OpenAIProvider
 from .anthropic_provider import AnthropicProvider
 from .routellm_provider import RouteLLMProvider
+from .local_provider import LocalLLMProvider
 from utils.errors import ConfigurationError
 from utils.logging import get_logger
 
@@ -20,6 +21,7 @@ class LLMProviderType(str, Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     ROUTELLM = "routellm"
+    LOCAL = "local"
 
 
 class LLMFactory:
@@ -34,6 +36,7 @@ class LLMFactory:
         LLMProviderType.OPENAI: OpenAIProvider,
         LLMProviderType.ANTHROPIC: AnthropicProvider,
         LLMProviderType.ROUTELLM: RouteLLMProvider,
+        LLMProviderType.LOCAL: LocalLLMProvider,
     }
     
     @classmethod
@@ -76,15 +79,18 @@ class LLMFactory:
         if not provider_class:
             raise ConfigurationError(f"Provider class not found for: {provider_type}")
         
-        if not api_key:
+        if provider_enum != LLMProviderType.LOCAL and not api_key:
             raise ConfigurationError(f"API key required for {provider_type}")
+        if provider_enum == LLMProviderType.LOCAL and not api_key:
+            api_key = ""
         
         # Set default model if not provided
         if not default_model:
             default_models = {
                 LLMProviderType.OPENAI: "gpt-4",
                 LLMProviderType.ANTHROPIC: "claude-3-sonnet-20240229",
-                LLMProviderType.ROUTELLM: "auto"  # RouteLLM uses automatic routing
+                LLMProviderType.ROUTELLM: "auto",  # RouteLLM uses automatic routing
+                LLMProviderType.LOCAL: "local",
             }
             default_model = default_models.get(provider_enum)
         

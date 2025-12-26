@@ -38,3 +38,14 @@ class EnhancedTreeOfThoughtAgent(BaseToTAgent):
         
         return super().run(context)
 
+    def score_paths(self, task: str, nodes, memories) -> None:
+        """Rank paths by consistency and memory alignment."""
+        super().score_paths(task, nodes, memories)
+        for node in nodes:
+            consistency = max(0.0, 1.0 - (node.depth * 0.1))
+            node.score = min(1.0, node.score + (0.1 * consistency))
+
+    def prune_paths(self, nodes, threshold: float = 0.4) -> None:
+        """Prune weak branches more aggressively for enhanced agent."""
+        super().prune_paths(nodes, threshold=threshold)
+

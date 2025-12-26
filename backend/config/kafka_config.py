@@ -5,7 +5,7 @@ Kafka configuration for the feedback pipeline.
 
 import os
 from typing import Optional
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class KafkaConfig(BaseSettings):
@@ -41,9 +41,11 @@ class KafkaConfig(BaseSettings):
     ENABLE_KAFKA: bool = os.getenv("ENABLE_KAFKA", "false").lower() == "true"
     ENABLE_OUTCOME_LOGGING: bool = os.getenv("ENABLE_OUTCOME_LOGGING", "true").lower() == "true"
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore"
+    )
 
 
 # Global config instance

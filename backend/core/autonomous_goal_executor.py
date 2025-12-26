@@ -45,6 +45,7 @@ class ExecutionPlan:
     dependencies: List[str]
     actions: List[Dict[str, Any]]
     priority_score: float
+    memory_context: List[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -55,7 +56,8 @@ class ExecutionPlan:
             "resource_requirements": self.resource_requirements,
             "dependencies": self.dependencies,
             "actions": self.actions,
-            "priority_score": self.priority_score
+            "priority_score": self.priority_score,
+            "memory_context": self.memory_context or []
         }
 
 
@@ -69,6 +71,11 @@ class ExecutionResult:
     impact: Dict[str, float]
     execution_time: timedelta
     lessons_learned: List[str]
+    evaluation: Optional[Dict[str, Any]] = None
+    reflection: Optional[str] = None
+    memory_entry_id: Optional[str] = None
+    curriculum_adjustment: Optional[Dict[str, Any]] = None
+    agent_mutations: Optional[List[Dict[str, Any]]] = None
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -78,7 +85,12 @@ class ExecutionResult:
             "actions_failed": self.actions_failed,
             "impact": self.impact,
             "execution_time": str(self.execution_time),
-            "lessons_learned": self.lessons_learned
+            "lessons_learned": self.lessons_learned,
+            "evaluation": self.evaluation,
+            "reflection": self.reflection,
+            "memory_entry_id": self.memory_entry_id,
+            "curriculum_adjustment": self.curriculum_adjustment,
+            "agent_mutations": self.agent_mutations or []
         }
 
 
@@ -102,6 +114,7 @@ class AutonomousGoalExecutor:
         self.execution_interval_seconds = self.config.get("execution_interval_seconds", 60)
         self.max_concurrent_goals = self.config.get("max_concurrent_goals", 3)
         self.enable_learning = self.config.get("enable_learning", True)
+        self.action_delay_seconds = self.config.get("action_delay_seconds", 1)
         
         # State
         self.execution_plans: Dict[str, ExecutionPlan] = {}
@@ -110,6 +123,13 @@ class AutonomousGoalExecutor:
         
         # Action registry
         self.action_handlers: Dict[str, Callable] = {}
+        self.meta_memory_agent = self.config.get("meta_memory_agent")
+        self.evaluator_agent = self.config.get("evaluator")
+        self.meta_evolver = self.config.get("meta_evolver")
+        self.curriculum_agent = self.config.get("curriculum_agent")
+        self.evolve_every_n = self.config.get("evolve_every_n", 5)
+        self._execution_counter = 0
+        self.context_agents = self.config.get("context_agents", [])
         
         # Background execution
         self.running = False
@@ -135,6 +155,18 @@ class AutonomousGoalExecutor:
         """Register a handler function for a specific action type."""
         self.action_handlers[action_name] = handler
         logger.info(f"Registered action handler: {action_name}")
+
+    def set_meta_memory_agent(self, agent: Any) -> None:
+        self.meta_memory_agent = agent
+
+    def set_evaluator(self, agent: Any) -> None:
+        self.evaluator_agent = agent
+
+    def set_meta_evolver(self, agent: Any) -> None:
+        self.meta_evolver = agent
+
+    def set_context_agents(self, agents: List[Any]) -> None:
+        self.context_agents = agents
     
     def start(self):
         """Start autonomous goal execution loop."""
@@ -195,6 +227,7 @@ class AutonomousGoalExecutor:
         actions_failed = []
         impact = {}
         lessons = []
+        reflection_notes = []
         
         try:
             for action in plan.actions:
@@ -205,6 +238,7 @@ class AutonomousGoalExecutor:
                     # Execute action
                     result = await self._execute_action(action_name, action_params, goal_id)
                     
+                    result.setdefault("action", action_name)
                     if result.get("success", False):
                         actions_completed.append(action_name)
                         self._record_action_success(action_name, True)
@@ -221,8 +255,20 @@ class AutonomousGoalExecutor:
                         lessons.append(lesson)
                         logger.warning(lesson)
                     
+                    # Reflection and memory logging for agent-backed actions
+                    reflection = self._reflect_action(handler=self.action_handlers.get(action_name), result=result, goal_id=goal_id)
+                    if reflection:
+                        reflection_notes.append(reflection)
+                        if self.meta_memory_agent:
+                            self.meta_memory_agent.add_memory(
+                                content=reflection,
+                                tags=["reflection", "action"],
+                                metadata={"goal_id": goal_id, "action": action_name}
+                            )
+
                     # Small delay between actions
-                    await asyncio.sleep(1)
+                    if self.action_delay_seconds:
+                        await asyncio.sleep(self.action_delay_seconds)
                     
                 except Exception as e:
                     actions_failed.append(action_name)
@@ -236,6 +282,40 @@ class AutonomousGoalExecutor:
             
             # Create execution result
             execution_time = datetime.now() - start_time
+            evaluation = self._evaluate_result(plan, actions_completed, actions_failed)
+            reflection_summary = self._summarize_reflection(reflection_notes, actions_failed)
+            curriculum_adjustment = None
+            if self.curriculum_agent:
+                try:
+                    adjustment = self.curriculum_agent.run({
+                        "task": plan.goal_id,
+                        "success": success,
+                        "task_difficulty": plan.priority_score / 100.0,
+                        "state": {"meta_memory": self.meta_memory_agent}
+                    })
+                    curriculum_adjustment = {
+                        "adjustment": adjustment,
+                        "current_level": getattr(self.curriculum_agent, "current_level", None)
+                    }
+                except Exception as exc:
+                    logger.warning(f"Curriculum adjustment failed: {exc}")
+
+            memory_entry_id = None
+            if self.meta_memory_agent:
+                memory_entry_id = self.meta_memory_agent.add_memory(
+                    content=f"Goal {goal_id} {'succeeded' if success else 'failed'}: {plan.goal_id}",
+                    tags=["goal_execution", "outcome"],
+                    metadata={
+                        "goal_id": goal_id,
+                        "actions_completed": actions_completed,
+                        "actions_failed": actions_failed,
+                        "impact": impact,
+                        "agent_name": "AutonomousGoalExecutor"
+                    },
+                    evaluation=evaluation,
+                    reflection=reflection_summary
+                )
+
             result = ExecutionResult(
                 goal_id=goal_id,
                 success=success,
@@ -243,7 +323,12 @@ class AutonomousGoalExecutor:
                 actions_failed=actions_failed,
                 impact=impact,
                 execution_time=execution_time,
-                lessons_learned=lessons
+                lessons_learned=lessons,
+                evaluation=evaluation,
+                reflection=reflection_summary,
+                memory_entry_id=memory_entry_id,
+                curriculum_adjustment=curriculum_adjustment,
+                agent_mutations=self._maybe_evolve_agents()
             )
             
             # Update statistics
@@ -367,6 +452,15 @@ class AutonomousGoalExecutor:
         resource_requirements = goal.metadata.get("resource_requirements", {})
         
         # Convert goal actions to execution actions
+        memory_context = []
+        if self.meta_memory_agent:
+            memories = self.meta_memory_agent.retrieve(
+                f"How to approach goal: {goal.description}",
+                top_k=3,
+                min_score=0.1
+            )
+            memory_context = [m.get("content") for m in memories]
+
         actions = []
         for action_str in goal.actions:
             actions.append({
@@ -375,7 +469,8 @@ class AutonomousGoalExecutor:
                     "goal_id": goal.goal_id,
                     "goal_type": goal.goal_type,
                     "target_metric": goal.target_metric,
-                    "target_value": goal.target_value
+                    "target_value": goal.target_value,
+                    "memory_context": memory_context
                 }
             })
         
@@ -387,7 +482,8 @@ class AutonomousGoalExecutor:
             resource_requirements=resource_requirements,
             dependencies=goal.dependencies,
             actions=actions,
-            priority_score=priority_score
+            priority_score=priority_score,
+            memory_context=memory_context
         )
         
         with self.lock:
@@ -399,6 +495,67 @@ class AutonomousGoalExecutor:
         )
         
         return plan
+
+    def _evaluate_result(
+        self,
+        plan: ExecutionPlan,
+        actions_completed: List[str],
+        actions_failed: List[str]
+    ) -> Optional[Dict[str, Any]]:
+        if not self.evaluator_agent or not hasattr(self.evaluator_agent, "evaluate"):
+            return None
+        summary = (
+            f"Goal {plan.goal_id} completed with {len(actions_completed)} successes "
+            f"and {len(actions_failed)} failures."
+        )
+        context = {
+            "task": plan.goal_id,
+            "actions_completed": actions_completed,
+            "actions_failed": actions_failed
+        }
+        return self.evaluator_agent.evaluate(output=summary, context=context)
+
+    def _reflect_action(self, handler: Optional[Callable], result: Dict[str, Any], goal_id: str) -> Optional[str]:
+        agent = None
+        if handler is not None and hasattr(handler, "__self__"):
+            agent = getattr(handler, "__self__", None)
+        agent = agent or result.get("agent_instance") or result.get("agent")
+        if agent and hasattr(agent, "reflect"):
+            context = {
+                "goal_id": goal_id,
+                "status": result.get("success"),
+                "result": result
+            }
+            try:
+                return agent.reflect(context)
+            except Exception as exc:
+                logger.warning(f"Reflection failed for agent: {exc}")
+        # Fallback reflection when no agent is available
+        status = "succeeded" if result.get("success") else "failed"
+        return f"Reflection: action {result.get('action', 'unknown')} {status}. Lesson learned: verify prerequisites before execution."
+
+    def _summarize_reflection(self, reflections: List[str], failures: List[str]) -> str:
+        if not reflections:
+            return "Reflection: no agent reflections captured. Lesson learned: add reflect hooks."
+        if failures:
+            return f"Reflection: {len(reflections)} reflections captured with failures in {failures}."
+        return f"Reflection: {len(reflections)} reflections captured; reinforce successful patterns."
+
+    def _maybe_evolve_agents(self) -> Optional[List[Dict[str, Any]]]:
+        if not self.meta_evolver:
+            return None
+        self._execution_counter += 1
+        if self._execution_counter % max(self.evolve_every_n, 1) != 0:
+            return None
+        try:
+            mutated = self.meta_evolver.evolve(
+                self.context_agents or [],
+                {"state": {"meta_memory": self.meta_memory_agent}}
+            )
+            return self.meta_evolver.mutation_log[-1:] if mutated else None
+        except Exception as exc:
+            logger.warning(f"Meta evolution failed: {exc}")
+            return None
     
     def _select_optimal_strategy(self, goal: Goal) -> ExecutionStrategy:
         """Select optimal execution strategy for a goal."""

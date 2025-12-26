@@ -71,6 +71,7 @@ class ComplianceWorkflow:
         run = Run(
             id=run_id,
             project_id=project_id,
+            tenant_id=tenant_id,
             status=RunStatus.PENDING,
             config=config or {},
             input_data={"query": query, "type": "compliance"},
@@ -104,6 +105,7 @@ class ComplianceWorkflow:
         """
         try:
             # Update run status to running
+            run = None
             if self.db:
                 run = self.db.query(Run).filter(Run.id == run_id).first()
                 if run:
@@ -118,6 +120,7 @@ class ComplianceWorkflow:
                 "outputs": [],
                 "state": {},
                 "run_id": run_id,
+                "tenant_id": run.tenant_id if run else "default-tenant",
                 "config": config or {}
             }
             
@@ -227,6 +230,7 @@ class ComplianceWorkflow:
         agent_run = AgentRun(
             id=agent_run_id,
             run_id=run_id,
+            tenant_id=context.get("tenant_id", "default-tenant"),
             agent_name=agent_name,
             agent_type=agent.__class__.__name__,
             status=AgentRunStatus.RUNNING,

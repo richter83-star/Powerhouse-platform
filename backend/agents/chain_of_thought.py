@@ -185,3 +185,9 @@ Explain how the steps connect to form the complete solution.
         output += "\n" + "="*50 + "\n"
         output += f"Final Answer:\n{final_answer}"
         return output
+
+    def reflect(self, context: Dict[str, Any]) -> str:
+        task = context.get("task", "")
+        outcome = context.get("status", "success")
+        lesson = "Use shorter step summaries to keep synthesis focused."
+        return f"Reflection: Chain-of-Thought {outcome} on '{task}'. Lesson learned: {lesson}"

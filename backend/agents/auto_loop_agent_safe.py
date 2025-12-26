@@ -173,6 +173,10 @@ class SafeAutoLoopAgent:
             "start_time": self.start_time.isoformat() if self.start_time else None
         }
 
+    def reflect(self, context: Dict[str, Any]) -> str:
+        lesson = "Respect budget limits and stop early when warnings appear."
+        return f"Reflection: SafeAutoLoop finished with status '{self.status}'. Lesson learned: {lesson}"
+
 
 # For backwards compatibility with old import
 class Agent:
@@ -188,3 +192,6 @@ class Agent:
             return f"Auto loop agent completed: {result['iterations_completed']} iterations"
         else:
             return f"Auto loop agent failed: {result.get('error', 'Unknown error')}"
+
+    def reflect(self, context: Dict[str, Any]) -> str:
+        return self.safe_agent.reflect(context)

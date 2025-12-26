@@ -8,7 +8,8 @@ from api.main import app
 from api.models import User
 from config.settings import settings
 from database.models import AgentRun, AgentRunStatus, Project, Run, RunStatus, Tenant
-from database.session import get_session
+from database.session import get_engine, get_session
+from database.models import Base
 
 
 def _override_user():
@@ -69,6 +70,7 @@ def test_compliance_workflow_stub(monkeypatch):
 
 def test_workflow_status_summary_smoke():
     settings.environment = "development"
+    Base.metadata.create_all(bind=get_engine())
     workflow_id = str(uuid.uuid4())
     tenant_id = _override_user().tenant_id
     project_id = str(uuid.uuid4())

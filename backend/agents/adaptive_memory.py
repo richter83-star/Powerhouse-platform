@@ -7,3 +7,5 @@ class AdaptiveMemoryAgent:
         self.mem.append(out)
     def run(self, context):
         return f"memory_size={len(self.mem)}"
+    def reflect(self, context):
+        return "Reflection: adaptive memory updated. Lesson learned: keep memory bounded."

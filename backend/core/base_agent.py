@@ -110,6 +110,19 @@ class BaseAgent(ABC):
                 - next_actions: Optional list of suggested next steps
         """
         pass
+
+    @abstractmethod
+    def reflect(self, context: Dict[str, Any]) -> str:
+        """
+        Reflect on the most recent execution.
+
+        Args:
+            context: Execution context with inputs/outputs
+
+        Returns:
+            str: Reflection with a lesson learned
+        """
+        pass
     
     # ==================== Communication Helpers ====================
     

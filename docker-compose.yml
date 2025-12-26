@@ -60,6 +60,7 @@
       ENVIRONMENT: "production"
       DEBUG: ${DEBUG:-False}
       LOG_LEVEL: "INFO"
+      LLM_ALLOW_NO_KEY: ${LLM_ALLOW_NO_KEY:-true}
       EMAIL_PROVIDER: "smtp"
       SMTP_SERVER: "localhost"
       SMTP_PORT: 1025

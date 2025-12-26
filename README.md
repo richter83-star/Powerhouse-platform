@@ -10,6 +10,14 @@ Enterprise-grade multi-agent AI platform for B2B use cases. Orchestrates 19+ spe
 - **Desktop**: Electron wrapper for standalone deployment
 - **Infrastructure**: Docker Compose for containerization
 
+## 📝 Changelog (Unreleased)
+
+- Added agent reflection/evaluation logging with memory-guided planning and swarm consensus voting.
+- Added curriculum adaptation, meta-evolution hooks, and a learning-loop test.
+- New optional env var: `MEMORY_STORE_PATH` to persist MetaMemoryAgent entries.
+- New optional seeds for deterministic behavior: `CurriculumAgent(seed=...)`, `MetaEvolverAgent(seed=...)`.
+- Added LLM provider override `LLM_PROVIDER` and local fallback via `LLM_ALLOW_NO_KEY` for offline runs.
+
 ## 🚀 Quick Start
 
 ### Prerequisites

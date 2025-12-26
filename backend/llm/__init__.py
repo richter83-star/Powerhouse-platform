@@ -4,6 +4,7 @@ from .base import BaseLLMProvider, LLMResponse
 from .openai_provider import OpenAIProvider
 from .anthropic_provider import AnthropicProvider
 from .routellm_provider import RouteLLMProvider
+from .local_provider import LocalLLMProvider
 from .factory import LLMFactory
 
 __all__ = [
@@ -12,5 +13,6 @@ __all__ = [
     "OpenAIProvider",
     "AnthropicProvider",
     "RouteLLMProvider",
+    "LocalLLMProvider",
     "LLMFactory"
 ]

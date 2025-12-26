@@ -235,3 +235,29 @@ class StigmergicMemory:
             )
         }
 
+    def score_consensus(
+        self,
+        proposals: List[str],
+        evaluator: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Score proposals by overlap and optional evaluator score.
+        """
+        def overlap(a: str, b: str) -> float:
+            tokens_a = set(a.lower().split())
+            tokens_b = set(b.lower().split())
+            if not tokens_a or not tokens_b:
+                return 0.0
+            return len(tokens_a & tokens_b) / max(len(tokens_a | tokens_b), 1)
+
+        scored = []
+        for idx, proposal in enumerate(proposals):
+            others = [p for i, p in enumerate(proposals) if i != idx]
+            consensus = sum(overlap(proposal, other) for other in others) / max(len(others), 1)
+            eval_score = None
+            if evaluator and hasattr(evaluator, "evaluate"):
+                eval_score = evaluator.evaluate(output=proposal, context={}).get("overall_score")
+            score = (0.6 * consensus) + (0.4 * eval_score) if eval_score is not None else consensus
+            scored.append({"proposal": proposal, "score": score})
+        return scored
+

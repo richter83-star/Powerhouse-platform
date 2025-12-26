@@ -33,6 +33,7 @@ class Agent:
         self.max_depth = 3
         self.branching_factor = 3  # Number of thoughts to explore per node
         self.max_nodes = 20  # Maximum total nodes to explore
+        self._last_nodes: List[ThoughtNode] = []
     
     def run(self, context: Dict[str, Any]) -> str:
         """
@@ -119,23 +120,72 @@ class Agent:
         
         # Step 3: Find best path through tree
         logger.info(f"Tree exploration complete. Total nodes: {len(all_nodes)}")
-        
+        self._last_nodes = all_nodes
+
         # Score all leaf nodes
         leaf_nodes = [node for node in all_nodes if not node.children]
         for node in leaf_nodes:
             node.score = self._evaluate_thought(task, node)
+
+        # Memory-guided scoring and pruning
+        memories = context.get("memories") or context.get("memory_context") or []
+        if memories:
+            self.score_paths(task, leaf_nodes, memories)
+            self.prune_paths(all_nodes)
         
         # Find best leaf
         if leaf_nodes:
             best_leaf = max(leaf_nodes, key=lambda n: n.score)
-            return self._extract_solution(best_leaf, all_nodes)
+            output = self._extract_solution(best_leaf, all_nodes)
+            return self._maybe_evaluate_output(output, context)
         
         # Fallback: return best root thought
         if root_nodes:
             root_nodes.sort(key=lambda n: n.score, reverse=True)
-            return f"Best reasoning path:\n{self._format_path(root_nodes[0])}"
-        
-        return "Unable to generate solution"
+            output_attach = f"Best reasoning path:\n{self._format_path(root_nodes[0])}"
+            return self._maybe_evaluate_output(output_attach, context)
+
+        return self._maybe_evaluate_output("Unable to generate solution", context)
+
+    def reflect(self, context: Dict[str, Any]) -> str:
+        task = context.get("task", "")
+        lesson = "Prune low-value branches early to focus depth on promising paths."
+        return f"Reflection: Tree-of-Thought completed for '{task}'. Lesson learned: {lesson}"
+
+    def score_paths(
+        self,
+        task: str,
+        nodes: List[ThoughtNode],
+        memories: List[Dict[str, Any]]
+    ) -> None:
+        """Re-score nodes using memory alignment."""
+        memory_texts = []
+        for memory in memories:
+            if isinstance(memory, dict):
+                memory_texts.append(memory.get("content", ""))
+            else:
+                memory_texts.append(str(memory))
+        memory_text = " ".join(memory_texts)
+        memory_tokens = set(memory_text.lower().split())
+        for node in nodes:
+            tokens = set(node.thought.lower().split())
+            overlap = len(tokens & memory_tokens) / max(len(tokens), 1)
+            node.score = min(1.0, max(0.0, node.score + (0.2 * overlap)))
+
+    def prune_paths(self, nodes: List[ThoughtNode], threshold: float = 0.35) -> None:
+        """Prune weak branches based on score threshold."""
+        for node in nodes:
+            if not node.children:
+                continue
+            node.children = [child for child in node.children if child.score >= threshold]
+
+    def _maybe_evaluate_output(self, output: str, context: Dict[str, Any]) -> str:
+        evaluator = context.get("evaluator") or context.get("evaluator_agent")
+        if evaluator and hasattr(evaluator, "evaluate"):
+            evaluation = evaluator.evaluate(output=output, context=context)
+            context["evaluation"] = evaluation
+            return f"{output}\n\nEvaluation: {evaluation}"
+        return output
     
     def _generate_thoughts(self, task: str, parent_node: Optional[ThoughtNode], depth: int) -> List[str]:
         """Generate multiple thoughts for a given node."""

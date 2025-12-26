@@ -158,6 +158,8 @@ htmlcov/
 .hypothesis/
 test-results/
 coverage/
+coverage.xml
+.snapshots/
 
 # Documentation Build
 docs/_build/

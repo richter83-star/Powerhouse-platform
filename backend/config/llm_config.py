@@ -4,6 +4,7 @@ LLM Provider Configuration for Powerhouse Multi-Agent Platform.
 """
 
 import os
+import logging
 from typing import Dict, Any, Optional
 
 
@@ -12,8 +13,8 @@ class LLMConfig:
     Configuration for LLM providers and routing strategies.
     """
     
-    # Default provider: RouteLLM
-    DEFAULT_PROVIDER = "routellm"
+    # Default provider: RouteLLM (override with LLM_PROVIDER)
+    DEFAULT_PROVIDER = os.getenv("LLM_PROVIDER", "routellm")
     
     # Routing strategies by environment
     ROUTING_STRATEGIES = {
@@ -23,7 +24,8 @@ class LLMConfig:
     }
     
     # Get current environment
-    ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
+    ENVIRONMENT = os.getenv("ENVIRONMENT", "production").lower()
+    ALLOW_NO_KEY = os.getenv("LLM_ALLOW_NO_KEY", "").lower() in ("1", "true", "yes")
     
     # Default routing strategy
     DEFAULT_ROUTING_STRATEGY = ROUTING_STRATEGIES.get(
@@ -72,6 +74,10 @@ class LLMConfig:
         "anthropic": {
             "api_key": ANTHROPIC_API_KEY,
             "default_model": "claude-3-sonnet-20240229",
+        },
+        "local": {
+            "api_key": "",
+            "default_model": "local",
         }
     }
     
@@ -122,16 +128,24 @@ class LLMConfig:
         if agent_name:
             routing_strategy = cls.get_routing_strategy_for_agent(agent_name)
         
-        # Get provider config
-        config = cls.get_provider_config(cls.DEFAULT_PROVIDER).copy()
+        provider = cls.DEFAULT_PROVIDER
+        config = cls.get_provider_config(provider).copy()
+
+        if provider != "local" and not config.get("api_key"):
+            if cls.ALLOW_NO_KEY or cls.ENVIRONMENT in ("development", "test", "ci"):
+                provider = "local"
+                config = cls.get_provider_config(provider).copy()
+                logging.getLogger(__name__).info(
+                    "LLM API key missing; falling back to local provider."
+                )
         
         # Update routing strategy if using RouteLLM
-        if cls.DEFAULT_PROVIDER == "routellm":
+        if provider == "routellm":
             config["routing_strategy"] = routing_strategy
         
         # Create provider
         return LLMFactory.create(
-            provider_type=cls.DEFAULT_PROVIDER,
+            provider_type=provider,
             **config
         )
 

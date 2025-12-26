@@ -61,6 +61,9 @@ class TestAgent(BaseAgent):
             }
         }
 
+    def reflect(self, context: Dict[str, Any]) -> str:
+        return "Reflection: test agent executed. Lesson learned: validate inputs early."
+
 
 # ============================================================================
 # OutcomeEvent Tests

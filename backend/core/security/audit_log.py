@@ -150,10 +150,15 @@ class AuditLogger:
         self.event_queue = asyncio.Queue()
         self._running = False
         self._processor_task = None
+        self._loop = None
     
     async def start(self):
         """Start the audit log processor"""
         if not self._running:
+            current_loop = asyncio.get_running_loop()
+            if self._loop is not current_loop:
+                self.event_queue = asyncio.Queue()
+                self._loop = current_loop
             self._running = True
             self._processor_task = asyncio.create_task(self._process_events())
     
@@ -161,7 +166,12 @@ class AuditLogger:
         """Stop the audit log processor"""
         self._running = False
         if self._processor_task:
-            await self._processor_task
+            self._processor_task.cancel()
+            try:
+                await self._processor_task
+            except asyncio.CancelledError:
+                pass
+            self._processor_task = None
     
     async def _process_events(self):
         """Background task to process audit events"""
@@ -171,6 +181,9 @@ class AuditLogger:
                 await self._write_event(event)
             except asyncio.TimeoutError:
                 continue
+            except RuntimeError as exc:
+                print(f"Error processing audit event: {exc}")
+                break
             except Exception as e:
                 print(f"Error processing audit event: {e}")
     
