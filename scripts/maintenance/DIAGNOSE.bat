@@ -9,6 +9,9 @@ echo This will check your system setup and folder structure
 echo.
 pause
 
+for %%I in ("%~dp0\..\..") do set "ROOT=%%~fI"
+cd /d "%ROOT%"
+
 echo.
 echo [1] Current Location
 echo ================================================================

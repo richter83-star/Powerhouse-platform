@@ -7,12 +7,14 @@ REM This script performs a complete uninstall followed by a fresh installation.
 REM Use this when you want to completely reset Powerhouse.
 REM ============================================================================
 
+for %%I in ("%~dp0\..\..") do set "ROOT=%%~fI"
+cd /d "%ROOT%"
+
 REM Logging helper function
-set "LOG_FILE=%~dp0.cursor\debug.log"
+set "LOG_FILE=%ROOT%\.cursor\debug.log"
 powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='CLEAN_REINSTALL.bat:ENTRY';message='Script entry';data=@{cd='%~dp0'};sessionId='debug-session';runId='run1';hypothesisId='A'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
 
-REM Change to script directory
-cd /d "%~dp0"
+REM Change to repo root
 powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='CLEAN_REINSTALL.bat:16';message='After cd';data=@{currentDir='%CD%'};sessionId='debug-session';runId='run1';hypothesisId='A'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
 
 echo.
@@ -116,7 +118,7 @@ set "SAVED_DIR=%CD%"
 
 REM Call UNINSTALL.bat and capture error code
 REM Always continue execution even if UNINSTALL.bat fails
-call UNINSTALL.bat auto preserve_data
+call "%ROOT%\UNINSTALL.bat" auto preserve_data
 set "UNINSTALL_RESULT=!ERRORLEVEL!"
 if "!UNINSTALL_RESULT!"=="" set "UNINSTALL_RESULT=0"
 
@@ -152,7 +154,7 @@ set "SAVED_DIR=%CD%"
 
 REM Call UNINSTALL.bat and capture error code
 REM Always continue execution even if UNINSTALL.bat fails
-call UNINSTALL.bat auto
+call "%ROOT%\UNINSTALL.bat" auto
 set "UNINSTALL_RESULT=!ERRORLEVEL!"
 if "!UNINSTALL_RESULT!"=="" set "UNINSTALL_RESULT=0"
 
@@ -223,7 +225,7 @@ echo [OK] Step 2 complete.
 echo.
 
 REM ============================================================================
-REM Step 3: Fresh Installation
+REM Step 3: Build and start via Docker
 REM ============================================================================
 
 echo.
@@ -232,33 +234,31 @@ echo Step 3: Installing Powerhouse...
 echo ============================================================================
 echo.
 
-if not exist "INSTALL.bat" (
-    powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='CLEAN_REINSTALL.bat:178';message='INSTALL.bat not found';data=@{currentDir='%CD%';action='exit'};sessionId='debug-session';runId='run1';hypothesisId='E'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
-    echo [ERROR] INSTALL.bat not found!
-    echo [ERROR] Please make sure you're in the POWERHOUSE_DEBUG directory.
+if not exist "%ROOT%\docker-quickstart.bat" (
+    powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='CLEAN_REINSTALL.bat:178';message='docker-quickstart.bat not found';data=@{currentDir='%CD%';action='exit'};sessionId='debug-session';runId='run1';hypothesisId='E'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
+    echo [ERROR] docker-quickstart.bat not found!
+    echo [ERROR] Please make sure you're in the Powerhouse repo root.
     echo [ERROR] Current directory: %CD%
     pause
     exit /b 1
 )
 
-powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='CLEAN_REINSTALL.bat:186';message='Before INSTALL.bat call';data=@{action='call_install'};sessionId='debug-session';runId='run1';hypothesisId='E'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
-echo [INFO] Starting installation...
+powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='CLEAN_REINSTALL.bat:186';message='Before docker-quickstart call';data=@{action='call_docker_quickstart'};sessionId='debug-session';runId='run1';hypothesisId='E'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
+echo [INFO] Building images and starting services...
 echo [INFO] This may take 5-10 minutes...
 echo.
 
-REM Set AUTO_MODE so INSTALL.bat doesn't pause
-set "AUTO_MODE=auto"
-call INSTALL.bat
-set "INSTALL_RESULT=!ERRORLEVEL!"
-if "!INSTALL_RESULT!"=="" set "INSTALL_RESULT=0"
-powershell -Command "$logPath = '%LOG_FILE%'; $result = '!INSTALL_RESULT!'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='CLEAN_REINSTALL.bat:253';message='After INSTALL.bat call';data=@{errorLevel=$result};sessionId='debug-session';runId='run1';hypothesisId='E'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
+call "%ROOT%\docker-quickstart.bat" --build
+set "START_RESULT=!ERRORLEVEL!"
+if "!START_RESULT!"=="" set "START_RESULT=0"
+powershell -Command "$logPath = '%LOG_FILE%'; $result = '!START_RESULT!'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='CLEAN_REINSTALL.bat:253';message='After docker-quickstart call';data=@{errorLevel=$result};sessionId='debug-session';runId='run1';hypothesisId='E'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
 
 echo.
-echo [INFO] Installation script finished. Return code: !INSTALL_RESULT!
+echo [INFO] Startup script finished. Return code: !START_RESULT!
 echo.
 
-if !INSTALL_RESULT! NEQ 0 (
-    echo [ERROR] Installation returned error code !INSTALL_RESULT!
+if !START_RESULT! NEQ 0 (
+    echo [ERROR] Startup returned error code !START_RESULT!
     echo [ERROR] Please check the errors above.
     echo.
     echo Do you want to continue anyway? (yes/no)
@@ -271,18 +271,18 @@ if !INSTALL_RESULT! NEQ 0 (
 )
 
 REM ============================================================================
-REM Step 4: Start Services
+REM Step 4: Optional restart
 REM ============================================================================
 
 echo.
 echo ============================================================================
-echo Step 4: Starting services...
+echo Step 4: Optional restart...
 echo ============================================================================
 echo.
 
 :start_services_loop
 powershell -Command "$logPath = '%LOG_FILE%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='CLEAN_REINSTALL.bat:222';message='Before start_services prompt';data=@{step='start_services_loop'};sessionId='debug-session';runId='run1';hypothesisId='B'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
-set /p START_SERVICES="Start Powerhouse services now? (yes/no): "
+set /p START_SERVICES="Restart Powerhouse services now? (yes/no): "
 powershell -Command "$logPath = '%LOG_FILE%'; $start = '%START_SERVICES%'; $log = @{timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();location='CLEAN_REINSTALL.bat:224';message='Start services input received';data=@{startServices=$start};sessionId='debug-session';runId='run1';hypothesisId='B'} | ConvertTo-Json -Compress; Add-Content -Path $logPath -Value $log" >nul 2>&1
 
 if "%START_SERVICES%"=="" (
@@ -293,14 +293,14 @@ if "%START_SERVICES%"=="" (
 
 if /i "%START_SERVICES%"=="yes" (
     echo.
-    echo Starting Powerhouse...
-    call START_POWERHOUSE_FULL.bat
+    echo Restarting Powerhouse...
+    call "%ROOT%\docker-quickstart.bat"
     goto services_done
 )
 
 if /i "%START_SERVICES%"=="no" (
     echo.
-    echo Services not started. Start manually with: START_POWERHOUSE_FULL.bat
+    echo Services already started in Step 3.
     goto services_done
 )
 

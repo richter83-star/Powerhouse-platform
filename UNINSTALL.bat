@@ -320,8 +320,8 @@ if /i "%REMOVE_ENV%"=="yes" (
 )
 echo.
 echo To reinstall Powerhouse:
-echo 1. Run: INSTALL.bat
-echo 2. Run: START_POWERHOUSE_FULL.bat
+echo 1. Run: docker-quickstart.bat --build
+echo 2. Run: docker-quickstart.bat
 echo.
 echo ============================================================================
 

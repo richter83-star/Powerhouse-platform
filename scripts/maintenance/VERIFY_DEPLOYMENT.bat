@@ -6,7 +6,8 @@ echo   DEPLOYMENT VERIFICATION
 echo =============================================
 echo.
 
-cd /d "%~dp0"
+for %%I in ("%~dp0\..\..") do set "ROOT=%%~fI"
+cd /d "%ROOT%"
 
 REM Activate venv
 if exist "backend\venv\Scripts\activate.bat" (
@@ -21,10 +22,10 @@ echo [1/4] Checking backend health...
 cd backend
 python -c "try:
     import requests
-    r = requests.get('http://localhost:8000/health', timeout=2)
+    r = requests.get('http://localhost:8001/health', timeout=2)
     print('[OK] Backend is healthy - Status:', r.status_code)
 except:
-    print('[WARNING] Backend not responding. Is it running on port 8000?')" 2>nul
+    print('[WARNING] Backend not responding. Is it running on port 8001?')" 2>nul
 if errorlevel 1 (
     echo [WARNING] Backend not responding. Is it running?
 ) else (
@@ -51,7 +52,7 @@ cd ..
 echo.
 
 echo [4/4] Checking API documentation...
-start http://localhost:8000/docs
+start http://localhost:8001/docs
 echo [OK] API documentation opened in browser
 echo.
 

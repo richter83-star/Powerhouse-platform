@@ -49,40 +49,14 @@ Before installing, make sure you have:
 INSTALL_DOCKER_ONLY.bat
 ```
 
-#### Option 2: First-Time Setup Wizard
-**File:** `SETUP_FIRST_TIME.bat`  
-**Time:** 3-5 minutes (first time), 30 seconds (after)  
-**Best for:** Users who want step-by-step guidance
-
-**Features:**
-- ✅ Automatic prerequisite checking
-- ✅ Pre-downloads images for faster startup
-- ✅ Helpful error messages
-- ✅ Verifies everything works
+#### Option 2: Docker Quick Start (After First Install)
+**File:** `docker-quickstart.bat`  
+**Time:** ~30 seconds  
+**Best for:** Starting services after initial install
 
 **Usage:**
 ```bash
-SETUP_FIRST_TIME.bat
-```
-
-#### Option 3: Quick Install
-**File:** `QUICK_INSTALL.bat`  
-**Time:** 2-3 minutes (first time), 30 seconds (after)  
-**Best for:** Users who want fast setup with minimal interaction
-
-**Usage:**
-```bash
-QUICK_INSTALL.bat
-```
-
-#### Option 4: Traditional Install (Full Local Setup)
-**File:** `INSTALL.bat`  
-**Time:** 5-10 minutes  
-**Requirements:** Python 3.11+, Node.js 18+, Docker Desktop
-
-**Usage:**
-```bash
-INSTALL.bat
+docker-quickstart.bat
 ```
 
 ---
@@ -108,7 +82,7 @@ INSTALL.bat
 - Easier to maintain
 - Works consistently across different systems
 
-> 💡 **See `FIRST_TIME_SETUP.md`** for detailed comparison of all installation methods.
+> 💡 **See `README_QUICK_START.md`** for step-by-step Docker startup details.
 
 ### Alternative: Manual Installation
 
@@ -116,24 +90,16 @@ If you prefer manual steps or encounter issues:
 
 1. **Run Diagnostics** (troubleshooting):
    ```bash
-   DIAGNOSE.bat
+   scripts\maintenance\DIAGNOSE.bat
    ```
 
-2. **Install Dependencies**:
+2. **Start Docker Services**:
    ```bash
-   INSTALL.bat
+   docker-quickstart.bat
    ```
-   
-   Or install backend only:
+   Or:
    ```bash
-   scripts\INSTALL_BACKEND_ONLY.bat
-   ```
-
-3. **Start Services Individually**:
-   ```bash
-   1_START_DATABASE.bat    # PostgreSQL (wait for it to finish)
-   2_START_BACKEND.bat     # FastAPI (keep window open)
-   3_START_FRONTEND.bat    # Next.js (keep window open)
+   docker-compose up -d
    ```
 
 ### Access Points
@@ -283,13 +249,13 @@ See deployment guides in `backend/docs/` directory.
 
 ## 📖 Additional Resources
 
-- **Quick Start Guide**: See `QUICK_START.md` for step-by-step instructions
-- **Installation Troubleshooting**: See `QUICK_START.md` (Troubleshooting section)
+- **Quick Start Guide**: See `README_QUICK_START.md` for step-by-step instructions
+- **Installation Troubleshooting**: See `README_QUICK_START.md` (Troubleshooting section)
 - **Architecture**: See `docs/ARCHITECTURE.md` for system design
 - **Deployment**: See `docs/DEPLOYMENT_GUIDE.md` for production setup
 - **Git Setup**: See `docs/GIT_SETUP.md` for repository configuration
 
 ---
 
-**Note**: This is an active development project. For the fastest setup, use `INSTALL.bat` (one-click installer).
+**Note**: This is an active development project. For the fastest setup, use `INSTALL_DOCKER_ONLY.bat`.
 

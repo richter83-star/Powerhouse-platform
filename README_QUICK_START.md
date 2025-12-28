@@ -27,13 +27,13 @@ This will:
 - `UNINSTALL.bat` - Complete uninstall
 
 ### Utilities
-- `DIAGNOSE.bat` - Diagnostic tool
-- `VERIFY_DEPLOYMENT.bat` - Verify deployment
-- `CLEAN_REINSTALL.bat` - Clean reinstall
+- `scripts\maintenance\DIAGNOSE.bat` - Diagnostic tool
+- `scripts\maintenance\VERIFY_DEPLOYMENT.bat` - Verify deployment
+- `scripts\maintenance\CLEAN_REINSTALL.bat` - Clean reinstall
 
 ### Testing
-- `TEST_PHASE1.bat` - Phase 1 tests
-- `TEST_COMMERCIAL_GRADE.bat` - Commercial grade tests
+- `scripts\testing\TEST_PHASE1.bat` - Phase 1 tests
+- `scripts\testing\TEST_COMMERCIAL_GRADE.bat` - Commercial grade tests
 
 ## 📚 Documentation
 

@@ -16,7 +16,7 @@ npm run dev
 ### 2. Run Automated Tests
 ```bash
 # Windows
-TEST_PHASE1.bat
+scripts/testing/TEST_PHASE1.bat
 
 # Or manually
 python backend/scripts/test_phase1.py

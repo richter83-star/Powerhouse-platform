@@ -23,14 +23,8 @@ INSTALL_DOCKER_ONLY.bat
 
 ### 📋 Alternative Options
 
-#### Option 2: Step-by-Step Wizard
-`SETUP_FIRST_TIME.bat` - Guided setup with helpful messages
-
-#### Option 3: Quick Install  
-`QUICK_INSTALL.bat` - Fast, minimal interaction
-
-#### Option 4: Full Local Install
-`INSTALL.bat` - Installs Python/Node.js dependencies locally
+#### Option 2: Docker Quick Start (after install)
+`docker-quickstart.bat` - Starts services quickly
 
 ---
 
@@ -57,11 +51,13 @@ Once installation completes:
 2. **Start/Stop Services:**
    ```bash
    # Start
-   START_DOCKER.bat
+   docker-quickstart.bat
    # OR
    docker-compose up -d
    
    # Stop
+   STOP_ALL.bat
+   # OR
    docker-compose down
    ```
 
@@ -73,7 +69,7 @@ Once installation completes:
 
 ## 📚 More Information
 
-- **Detailed guide:** `FIRST_TIME_SETUP.md`
+- **Detailed guide:** `README_QUICK_START.md`
 - **Troubleshooting:** See installation script output
 - **Service logs:** `docker-compose logs -f`
 
@@ -83,9 +79,8 @@ Once installation completes:
 
 | Method | First Time | After First Time |
 |--------|-----------|------------------|
-| Docker-Only | 5-8 min | 30 sec |
-| Quick Install | 3-5 min | 30 sec |
-| Full Install | 10-15 min | 2-3 min |
+| Docker-Only Install | 5-8 min | 30 sec |
+| Docker Quick Start | 30 sec | 30 sec |
 
 **Recommendation:** Use `INSTALL_DOCKER_ONLY.bat` for the fastest experience!
 

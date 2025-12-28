@@ -12,6 +12,9 @@ echo WARNING: This will delete all database data!
 echo.
 pause
 
+for %%I in ("%~dp0\..\..") do set "ROOT=%%~fI"
+cd /d "%ROOT%"
+
 REM Step 1: Stop everything
 echo.
 echo [1/3] Stopping services...
@@ -28,12 +31,12 @@ docker-compose down -v 2>nul
 docker volume rm postgres_data redis_data 2>nul
 echo Done.
 
-REM Step 3: Run INSTALL.bat
+REM Step 3: Start via docker-quickstart
 echo.
-echo [3/3] Running fresh installation...
+echo [3/3] Rebuilding and starting services...
 echo This will take 5-10 minutes...
 echo.
-call INSTALL.bat
+call "%ROOT%\docker-quickstart.bat" --build
 
 echo.
 echo ============================================================================

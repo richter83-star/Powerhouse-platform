@@ -64,7 +64,7 @@ export default function AgentsPage() {
       
       // Provide specific error messages
       if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
-        setError('❌ Cannot connect to backend! Make sure backend is running on port 8001. Run DIAGNOSE.bat to check.');
+        setError('❌ Cannot connect to backend! Make sure backend is running on port 8001. Run scripts/maintenance/DIAGNOSE.bat to check.');
       } else if (err?.message?.includes('NetworkError')) {
         setError('❌ Network error: Backend is not reachable. Ensure backend is running (run START.bat).');
       } else {

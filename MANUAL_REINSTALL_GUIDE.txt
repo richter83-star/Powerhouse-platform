@@ -47,20 +47,18 @@ STEP 4: Fresh Installation
 ============================================================================
 
 Simply run:
-   .\INSTALL.bat
+   .\docker-quickstart.bat --build
 
 This will:
-- Install all Python packages
-- Install all Node.js packages
-- Set up environment files
-- Prepare everything for running
+- Build Docker images
+- Start all services
 
 ============================================================================
 STEP 5: Start Powerhouse
 ============================================================================
 
 Run:
-   .\START_POWERHOUSE_FULL.bat
+   .\docker-quickstart.bat
 
 ============================================================================
 QUICK ONE-LINER (PowerShell as Admin)
@@ -68,7 +66,7 @@ QUICK ONE-LINER (PowerShell as Admin)
 
 Run this to do it all at once:
 
-docker-compose down -v; taskkill /F /IM python.exe /IM node.exe 2>$null; Remove-Item -Recurse -Force backend\venv -ErrorAction SilentlyContinue; .\INSTALL.bat
+docker-compose down -v; taskkill /F /IM python.exe /IM node.exe 2>$null; Remove-Item -Recurse -Force backend\venv -ErrorAction SilentlyContinue; .\docker-quickstart.bat --build
 
 ============================================================================
 

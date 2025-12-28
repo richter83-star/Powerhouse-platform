@@ -254,7 +254,7 @@ echo Next Time:
 echo ─────────────────────────────────────────────────────────────
 echo.
 echo Just run: docker-compose up -d
-echo Or use:   START_POWERHOUSE_FULL.bat
+echo Or use:   docker-quickstart.bat
 echo.
 echo Future startups will be instant (~30 seconds)!
 echo.

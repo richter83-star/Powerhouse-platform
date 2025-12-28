@@ -15,7 +15,8 @@ pause
 echo.
 
 REM Go to project root
-cd /d "%~dp0"
+for %%I in ("%~dp0\..\..") do set "ROOT=%%~fI"
+cd /d "%ROOT%"
 
 REM Activate virtual environment
 if exist "backend\venv\Scripts\activate.bat" (
