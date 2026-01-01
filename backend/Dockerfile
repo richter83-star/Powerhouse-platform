@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ libpq-dev build-essential curl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Create non-root user for the app
+RUN useradd --create-home --shell /bin/bash appuser
+
 # 2. Install Python Libraries
 COPY requirements.txt .
 RUN pip install --upgrade pip
@@ -19,7 +22,10 @@ RUN pip install "pydantic[email]"
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 3. Copy Application
-COPY . .
+COPY --chown=appuser:appuser . .
+RUN mkdir -p /app/data_io/uploads /app/data_io/outputs /app/data_io/templates /app/data_io/samples \
+    && chown -R appuser:appuser /app/data_io
+USER appuser
 EXPOSE 8000
 
 # 4. Start

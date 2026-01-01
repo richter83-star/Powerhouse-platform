@@ -23,24 +23,45 @@ spec:
                 com.docker.compose.service: frontend
                 com.docker.compose.network.default: "true"
         spec:
-            restartPolicy: unless-stopped
+            restartPolicy: Always
             containers:
                 - name: powerhouse-frontend
-                  image: powerhouse-platform-frontend
+                  image: powerhouse-platform-frontend:latest
                   imagePullPolicy: IfNotPresent
                   env:
                     - name: BACKEND_INTERNAL_URL
                       value: "http://backend:8000"
                     - name: DATABASE_URL
-                      value: "postgresql://powerhouse_user:securepass123@postgres:5432/powerhouse"
+                      valueFrom:
+                        secretKeyRef:
+                            name: powerhouse-secrets
+                            key: DATABASE_URL
                     - name: NEXTAUTH_SECRET
-                      value: "this_is_a_very_long_secure_secret_key_that_is_definitely_long_enough_to_pass_validation_12345"
+                      valueFrom:
+                        secretKeyRef:
+                            name: powerhouse-secrets
+                            key: NEXTAUTH_SECRET
                     - name: NEXTAUTH_URL
                       value: "http://localhost:3000"
                     - name: NEXT_PUBLIC_API_URL
                       value: "http://localhost:8001"
                     - name: NODE_ENV
                       value: "production"
+                    - name: POSTGRES_DB
+                      valueFrom:
+                        secretKeyRef:
+                            name: powerhouse-secrets
+                            key: POSTGRES_DB
+                    - name: POSTGRES_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                            name: powerhouse-secrets
+                            key: POSTGRES_PASSWORD
+                    - name: POSTGRES_USER
+                      valueFrom:
+                        secretKeyRef:
+                            name: powerhouse-secrets
+                            key: POSTGRES_USER
                   ports:
                     - name: frontend-3000
                       containerPort: 3000

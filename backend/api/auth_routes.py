@@ -12,7 +12,6 @@ from datetime import timedelta
 from core.security import (
     JWTAuthManager, 
     create_access_token, 
-    create_refresh_token,
     verify_token,
     rbac_manager,
     Role,
@@ -128,7 +127,7 @@ async def login(
     )
     
     # Create refresh token in database
-    refresh_token_obj = user_service.create_refresh_token(
+    refresh_token = user_service.create_refresh_token(
         user_id=user.id,
         tenant_id=request.tenant_id,
         ip_address=x_forwarded_for,
@@ -150,13 +149,15 @@ async def login(
     
     return LoginResponse(
         access_token=access_token,
-        refresh_token=refresh_token_obj.token
+        refresh_token=refresh_token
     )
 
 @router.post("/refresh", response_model=LoginResponse)
 async def refresh_token_endpoint(
     request: RefreshRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_forwarded_for: Optional[str] = Header(None),
+    user_agent: Optional[str] = Header(None)
 ):
     """
     Refresh access token using refresh token.
@@ -209,11 +210,15 @@ async def refresh_token_endpoint(
     # Revoke old refresh token in database
     user_service.revoke_refresh_token(request.refresh_token)
     
-    # Create new refresh token in database
-    new_refresh_token_obj = user_service.create_refresh_token(
-        user_id=user_id,
-        tenant_id=tenant_id
-    )
+    new_refresh_token = token_result.get("refresh_token")
+    if new_refresh_token:
+        user_service.store_refresh_token(
+            token=new_refresh_token,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            ip_address=x_forwarded_for,
+            user_agent=user_agent,
+        )
     
     # Log token refresh
     await audit_logger.log(
@@ -228,7 +233,12 @@ async def refresh_token_endpoint(
     
     return LoginResponse(
         access_token=token_result["access_token"],
-        refresh_token=token_result.get("refresh_token", new_refresh_token_obj.token)
+        refresh_token=new_refresh_token or user_service.create_refresh_token(
+            user_id=user_id,
+            tenant_id=tenant_id,
+            ip_address=x_forwarded_for,
+            user_agent=user_agent,
+        )
     )
 
 @router.post("/verify")

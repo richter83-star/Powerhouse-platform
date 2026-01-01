@@ -7,8 +7,8 @@ from fastapi import APIRouter, HTTPException
 from typing import Dict, Optional, Any
 from pydantic import BaseModel
 
-from backend.core.deployment.health_checks import get_health_check
-from backend.core.deployment.backup_manager import get_backup_manager
+from core.deployment.health_checks import get_health_check
+from core.deployment.backup_manager import get_backup_manager
 
 router = APIRouter(prefix="/api/deployment", tags=["Deployment"])
 

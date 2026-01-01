@@ -31,12 +31,23 @@ def create_missing_indexes(engine: Optional[Engine] = None) -> List[str]:
     
     created_indexes = []
     inspector = inspect(engine)
+    table_names = inspector.get_table_names()
     
     # Get existing indexes
     existing_indexes = {}
-    for table_name in inspector.get_table_names():
+    for table_name in table_names:
         indexes = inspector.get_indexes(table_name)
         existing_indexes[table_name] = {idx['name'] for idx in indexes}
+    
+    # Get available columns per table
+    table_columns = {}
+    for table_name in table_names:
+        try:
+            columns = inspector.get_columns(table_name)
+            table_columns[table_name] = {col["name"] for col in columns}
+        except Exception as e:
+            logger.warning(f"Failed to inspect columns for {table_name}: {e}")
+            table_columns[table_name] = set()
     
     # Define required indexes by table
     required_indexes = {
@@ -88,7 +99,7 @@ def create_missing_indexes(engine: Optional[Engine] = None) -> List[str]:
     # Create missing indexes
     with engine.connect() as conn:
         for table_name, indexes in required_indexes.items():
-            if table_name not in inspector.get_table_names():
+            if table_name not in table_names:
                 logger.warning(f"Table {table_name} does not exist, skipping indexes")
                 continue
             
@@ -97,6 +108,13 @@ def create_missing_indexes(engine: Optional[Engine] = None) -> List[str]:
                     logger.debug(f"Index {index_name} already exists on {table_name}")
                     continue
                 
+                missing_columns = [col for col in columns if col not in table_columns.get(table_name, set())]
+                if missing_columns:
+                    logger.warning(
+                        f"Skipping index {index_name} on {table_name}, missing columns: {', '.join(missing_columns)}"
+                    )
+                    continue
+
                 try:
                     # Create index using raw SQL
                     columns_str = ', '.join(columns)
@@ -107,6 +125,10 @@ def create_missing_indexes(engine: Optional[Engine] = None) -> List[str]:
                     logger.info(f"Created index: {index_name} on {table_name}({columns_str})")
                 except Exception as e:
                     logger.error(f"Failed to create index {index_name}: {e}")
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        logger.warning(f"Failed to rollback after index error: {index_name}", exc_info=True)
     
     return created_indexes
 
@@ -126,12 +148,19 @@ def get_connection_pool_stats(engine: Optional[Engine] = None) -> Dict[str, Any]
     
     pool: Pool = engine.pool
     
+    invalid_value = None
+    if hasattr(pool, "invalid"):
+        try:
+            invalid_value = pool.invalid()
+        except TypeError:
+            invalid_value = pool.invalid
+
     stats = {
         "size": pool.size(),
         "checked_in": pool.checkedin(),
         "checked_out": pool.checkedout(),
         "overflow": pool.overflow(),
-        "invalid": pool.invalid(),
+        "invalid": invalid_value,
     }
     
     # Calculate utilization

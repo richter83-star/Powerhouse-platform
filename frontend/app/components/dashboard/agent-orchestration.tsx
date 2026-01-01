@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,8 +9,6 @@ import {
   Network,
   Cpu,
   Activity,
-  Play,
-  Pause,
   RotateCcw,
   AlertCircle,
   CheckCircle2,
@@ -25,12 +22,11 @@ interface Agent {
   id: string;
   name: string;
   type: string;
-  status: 'active' | 'idle' | 'error' | 'processing' | 'running' | 'completed' | 'failed';
-  load: number;
+  status: 'active' | 'idle' | 'error' | 'processing' | 'running' | 'completed' | 'failed' | 'inactive' | 'unknown';
   tasksCompleted: number;
-  uptime: string;
-  accuracy: number;
-  lastActivity: string;
+  successRate: number;
+  avgLatencyMs: number;
+  lastRun: string | null;
   capabilities?: string[];
 }
 
@@ -47,21 +43,18 @@ export function AgentOrchestration() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-
-  const [orchestrationMetrics, setOrchestrationMetrics] = useState({
+  const [summary, setSummary] = useState({
     totalAgents: 0,
     activeAgents: 0,
     idleAgents: 0,
     errorAgents: 0,
-    avgLoad: 58.3,
-    totalTasks: 15847,
-    tasksPerMinute: 34.5,
-    orchestratorHealth: 'optimal'
+    tasksPerMinute: 0,
+    successRate: 0,
+    avgLatencyMs: 0
   });
 
   useEffect(() => {
     fetchAgents();
-    // Refresh every 30 seconds
     const interval = setInterval(fetchAgents, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -69,53 +62,71 @@ export function AgentOrchestration() {
   const fetchAgents = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/agents');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch agents');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+      const results = await Promise.allSettled([
+        fetch('/api/agents'),
+        fetch(`${apiUrl}/api/performance/metrics/agents?time_window_minutes=60`),
+        fetch(`${apiUrl}/api/performance/metrics/system?time_window_minutes=60`)
+      ]);
+
+      const agentsRes = results[0].status === 'fulfilled' ? results[0].value : null;
+      const metricsRes = results[1].status === 'fulfilled' ? results[1].value : null;
+      const systemRes = results[2].status === 'fulfilled' ? results[2].value : null;
+
+      let agentList: BackendAgent[] = [];
+      let metricsByAgent: Record<string, any> = {};
+      let systemMetrics: any = null;
+
+      if (agentsRes?.ok) {
+        const data = await agentsRes.json();
+        agentList = data?.agents || [];
       }
 
-      const data = await response.json();
-      const backendAgents: BackendAgent[] = data?.agents || [];
-      
-      // Transform backend agents to frontend format with simulated metrics
-      const transformedAgents: Agent[] = backendAgents.map((agent, index) => {
-        // Generate simulated but consistent metrics based on agent id
-        const seed = agent.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const statusOptions: Agent['status'][] = ['idle', 'idle', 'idle', 'active', 'processing'];
-        const randomStatus = statusOptions[seed % statusOptions.length];
-        
+      if (metricsRes?.ok) {
+        const data = await metricsRes.json();
+        metricsByAgent = data?.agents || {};
+      }
+
+      if (systemRes?.ok) {
+        const data = await systemRes.json();
+        systemMetrics = data?.metrics || null;
+      }
+
+      const transformedAgents: Agent[] = agentList.map((agent) => {
+        const perf = metricsByAgent[agent.name] || metricsByAgent[agent.id] || null;
+        const metrics = perf?.metrics || {};
+        const status = (perf?.status || agent.status || 'unknown') as Agent['status'];
+
         return {
           id: agent.id,
-          name: agent.type,
+          name: agent.name,
           type: agent.type,
-          status: randomStatus,
-          load: 15 + (seed % 70),
-          tasksCompleted: 100 + (seed % 3000),
-          uptime: `99.${90 + (seed % 9)}%`,
-          accuracy: 93 + (seed % 6) + Math.random(),
-          lastActivity: randomStatus === 'idle' ? '5 min ago' : randomStatus === 'processing' ? '2 sec ago' : '30 sec ago',
+          status,
+          tasksCompleted: metrics.total_tasks ?? 0,
+          successRate: (metrics.success_rate ?? 0) * 100,
+          avgLatencyMs: metrics.avg_latency_ms ?? 0,
+          lastRun: perf?.last_run || null,
           capabilities: agent.capabilities
         };
       });
 
       setAgents(transformedAgents);
-      
-      // Update orchestration metrics with real agent count
-      const activeCount = transformedAgents.filter(a => a.status === 'active' || a.status === 'processing').length;
-      const idleCount = transformedAgents.filter(a => a.status === 'idle').length;
-      const errorCount = transformedAgents.filter(a => a.status === 'error' || a.status === 'failed').length;
-      const avgLoad = transformedAgents.reduce((sum, a) => sum + a.load, 0) / transformedAgents.length;
 
-      setOrchestrationMetrics({
+      const activeCount = transformedAgents.filter(a => a.status === 'active' || a.status === 'processing' || a.status === 'running').length;
+      const idleCount = transformedAgents.filter(a => a.status === 'idle' || a.status === 'inactive').length;
+      const errorCount = transformedAgents.filter(a => a.status === 'error' || a.status === 'failed').length;
+
+      const totalTasks = systemMetrics?.total_tasks ?? 0;
+      const tasksPerMinute = totalTasks > 0 ? totalTasks / 60 : 0;
+
+      setSummary({
         totalAgents: transformedAgents.length,
         activeAgents: activeCount,
         idleAgents: idleCount,
         errorAgents: errorCount,
-        avgLoad: Math.round(avgLoad * 10) / 10,
-        totalTasks: 15847,
-        tasksPerMinute: 34.5,
-        orchestratorHealth: 'optimal'
+        tasksPerMinute: Number(tasksPerMinute.toFixed(1)),
+        successRate: (systemMetrics?.success_rate ?? 0) * 100,
+        avgLatencyMs: systemMetrics?.avg_latency_ms ?? 0
       });
 
       setLastRefresh(new Date());
@@ -128,28 +139,48 @@ export function AgentOrchestration() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-700 border-green-200';
-      case 'processing': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'idle': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'error': return 'bg-red-100 text-red-700 border-red-200';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+      case 'active':
+      case 'running':
+        return 'bg-green-100 text-green-700 border-green-200';
+      case 'processing':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'idle':
+      case 'inactive':
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'error':
+      case 'failed':
+        return 'bg-red-100 text-red-700 border-red-200';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'active': return <CheckCircle2 className="w-4 h-4" />;
-      case 'processing': return <Activity className="w-4 h-4 animate-pulse" />;
-      case 'idle': return <Clock className="w-4 h-4" />;
-      case 'error': return <AlertCircle className="w-4 h-4" />;
-      default: return <Activity className="w-4 h-4" />;
+      case 'active':
+      case 'running':
+        return <CheckCircle2 className="w-4 h-4" />;
+      case 'processing':
+        return <Activity className="w-4 h-4 animate-pulse" />;
+      case 'idle':
+      case 'inactive':
+        return <Clock className="w-4 h-4" />;
+      case 'error':
+      case 'failed':
+        return <AlertCircle className="w-4 h-4" />;
+      default:
+        return <Activity className="w-4 h-4" />;
     }
   };
 
-  const getLoadColor = (load: number) => {
-    if (load >= 80) return 'text-red-600';
-    if (load >= 60) return 'text-yellow-600';
-    return 'text-green-600';
+  const formatLatency = (value: number) => {
+    if (!value) {
+      return '--';
+    }
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(2)}s`;
+    }
+    return `${Math.round(value)}ms`;
   };
 
   return (
@@ -162,7 +193,7 @@ export function AgentOrchestration() {
               <Network className="w-8 h-8 text-blue-600" />
               <Badge className="bg-blue-100 text-blue-700 border-0">Total</Badge>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{orchestrationMetrics.totalAgents}</p>
+            <p className="text-3xl font-bold text-slate-900">{summary.totalAgents}</p>
             <p className="text-sm text-slate-600 mt-1">Total Agents</p>
           </CardContent>
         </Card>
@@ -173,7 +204,7 @@ export function AgentOrchestration() {
               <Zap className="w-8 h-8 text-green-600" />
               <Badge className="bg-green-100 text-green-700 border-0">Live</Badge>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{orchestrationMetrics.activeAgents}</p>
+            <p className="text-3xl font-bold text-slate-900">{summary.activeAgents}</p>
             <p className="text-sm text-slate-600 mt-1">Active Agents</p>
           </CardContent>
         </Card>
@@ -184,8 +215,8 @@ export function AgentOrchestration() {
               <Cpu className="w-8 h-8 text-purple-600" />
               <Badge className="bg-purple-100 text-purple-700 border-0">Avg</Badge>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{orchestrationMetrics.avgLoad}%</p>
-            <p className="text-sm text-slate-600 mt-1">Average Load</p>
+            <p className="text-3xl font-bold text-slate-900">{formatLatency(summary.avgLatencyMs)}</p>
+            <p className="text-sm text-slate-600 mt-1">Avg Latency</p>
           </CardContent>
         </Card>
 
@@ -195,7 +226,7 @@ export function AgentOrchestration() {
               <Activity className="w-8 h-8 text-orange-600" />
               <Badge className="bg-orange-100 text-orange-700 border-0">Rate</Badge>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{orchestrationMetrics.tasksPerMinute}</p>
+            <p className="text-3xl font-bold text-slate-900">{summary.tasksPerMinute}</p>
             <p className="text-sm text-slate-600 mt-1">Tasks/min</p>
           </CardContent>
         </Card>
@@ -226,8 +257,8 @@ export function AgentOrchestration() {
         <CardContent>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {agents.map((agent) => (
-              <div 
-                key={agent.id} 
+              <div
+                key={agent.id}
                 className="p-5 border border-slate-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all duration-200"
               >
                 <div className="flex items-start justify-between mb-4">
@@ -236,7 +267,7 @@ export function AgentOrchestration() {
                       <Brain className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-slate-900">{agent.name}</h4>
+                      <h4 className="font-semibold text-slate-900">{agent.type}</h4>
                       <p className="text-xs text-slate-500">{agent.id}</p>
                     </div>
                   </div>
@@ -251,10 +282,10 @@ export function AgentOrchestration() {
                 <div className="space-y-3">
                   <div>
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-slate-600">Agent Load</span>
-                      <span className={`font-bold ${getLoadColor(agent.load)}`}>{agent.load}%</span>
+                      <span className="text-slate-600">Success Rate</span>
+                      <span className="font-bold text-slate-900">{agent.successRate.toFixed(1)}%</span>
                     </div>
-                    <Progress value={agent.load} className="h-2" />
+                    <Progress value={agent.successRate} className="h-2" />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
@@ -263,28 +294,17 @@ export function AgentOrchestration() {
                       <p className="text-lg font-bold text-slate-900">{agent.tasksCompleted.toLocaleString()}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-500">Accuracy</p>
-                      <p className="text-lg font-bold text-slate-900">{agent.accuracy}%</p>
+                      <p className="text-xs text-slate-500">Avg Latency</p>
+                      <p className="text-lg font-bold text-slate-900">{formatLatency(agent.avgLatencyMs)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-500">Uptime</p>
-                      <p className="text-lg font-bold text-slate-900">{agent.uptime}</p>
+                      <p className="text-xs text-slate-500">Last Run</p>
+                      <p className="text-lg font-bold text-slate-900">{agent.lastRun ? new Date(agent.lastRun).toLocaleTimeString() : '--'}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-500">Last Activity</p>
-                      <p className="text-lg font-bold text-slate-900">{agent.lastActivity}</p>
+                      <p className="text-xs text-slate-500">Capabilities</p>
+                      <p className="text-lg font-bold text-slate-900">{agent.capabilities?.length ?? 0}</p>
                     </div>
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <Button size="sm" variant="outline" className="flex-1">
-                      <Pause className="w-3 h-3 mr-1" />
-                      Pause
-                    </Button>
-                    <Button size="sm" variant="outline" className="flex-1">
-                      <RotateCcw className="w-3 h-3 mr-1" />
-                      Restart
-                    </Button>
                   </div>
                 </div>
               </div>
@@ -324,27 +344,25 @@ export function AgentOrchestration() {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Communication Matrix */}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {agents.slice(0, 15).map((agent) => (
-                  <div 
+                  <div
                     key={agent.id}
                     className="relative p-4 border-2 rounded-lg bg-gradient-to-br from-white to-slate-50 hover:from-blue-50 hover:to-purple-50 hover:border-blue-300 transition-all duration-300 cursor-pointer group"
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <div className={`w-3 h-3 rounded-full ${
-                        agent.status === 'active' || agent.status === 'processing' 
-                          ? 'bg-green-500 animate-pulse' 
+                        agent.status === 'active' || agent.status === 'processing' || agent.status === 'running'
+                          ? 'bg-green-500 animate-pulse'
                           : 'bg-slate-300'
                       }`}></div>
                       <Brain className="w-4 h-4 text-blue-600" />
                     </div>
                     <p className="font-semibold text-xs text-slate-900 truncate">{agent.type}</p>
                     <p className="text-[10px] text-slate-500 mt-1">
-                      {agent.status} • {agent.load}% load
+                      {agent.status} • {agent.tasksCompleted} tasks
                     </p>
-                    
-                    {/* Connection indicator on hover */}
+
                     <div className="absolute -top-1 -right-1 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <Network className="w-3 h-3 text-white" />
                     </div>
@@ -352,7 +370,6 @@ export function AgentOrchestration() {
                 ))}
               </div>
 
-              {/* Legend */}
               <div className="flex items-center justify-center gap-6 pt-4 border-t border-slate-200">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-green-500"></div>
@@ -360,7 +377,7 @@ export function AgentOrchestration() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-slate-300"></div>
-                  <span className="text-xs text-slate-600">Idle</span>
+                  <span className="text-xs text-slate-600">Idle/Inactive</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Network className="w-4 h-4 text-blue-600" />

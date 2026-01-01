@@ -4,28 +4,77 @@ File Management Routes
 Handles upload, download, and management of input/output files
 """
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends
 from fastapi.responses import FileResponse, JSONResponse
 from typing import List, Optional
 import os
 import json
 import shutil
 from datetime import datetime
+import logging
 import mimetypes
+import re
+from pathlib import Path
 
-router = APIRouter()
+from api.auth import get_current_user
+
+router = APIRouter(dependencies=[Depends(get_current_user)])
+
+logger = logging.getLogger(__name__)
 
 # Base directories for file storage
-BASE_DIR = os.path.join(os.path.dirname(__file__), "../../..")
-UPLOADS_DIR = os.path.join(BASE_DIR, "data_io", "uploads")
-OUTPUTS_DIR = os.path.join(BASE_DIR, "data_io", "outputs")
-TEMPLATES_DIR = os.path.join(BASE_DIR, "data_io", "templates")
-SAMPLES_DIR = os.path.join(BASE_DIR, "data_io", "samples")
-HISTORY_FILE = os.path.join(BASE_DIR, "data_io", "file_history.json")
+_DEFAULT_ROOT = Path(__file__).resolve().parents[2] / "data_io"
+_ENV_ROOT = os.getenv("FILE_STORAGE_ROOT")
+_FALLBACK_ROOT = Path(os.getenv("FILE_STORAGE_FALLBACK", "/tmp/powerhouse-data"))
 
-# Ensure directories exist
-for directory in [UPLOADS_DIR, OUTPUTS_DIR, TEMPLATES_DIR, SAMPLES_DIR]:
-    os.makedirs(directory, exist_ok=True)
+
+def _init_storage_root() -> Path:
+    # Prefer explicit config, then repo data_io, then a safe writable fallback.
+    candidates = [Path(_ENV_ROOT)] if _ENV_ROOT else []
+    candidates.extend([_DEFAULT_ROOT, _FALLBACK_ROOT])
+    for candidate in candidates:
+        try:
+            (candidate / "uploads").mkdir(parents=True, exist_ok=True)
+            (candidate / "outputs").mkdir(parents=True, exist_ok=True)
+            (candidate / "templates").mkdir(parents=True, exist_ok=True)
+            (candidate / "samples").mkdir(parents=True, exist_ok=True)
+            return candidate
+        except PermissionError:
+            logger.warning("File storage root not writable: %s", candidate)
+    raise RuntimeError("No writable file storage root found")
+
+
+_STORAGE_ROOT = _init_storage_root()
+UPLOADS_DIR = str(_STORAGE_ROOT / "uploads")
+OUTPUTS_DIR = str(_STORAGE_ROOT / "outputs")
+TEMPLATES_DIR = str(_STORAGE_ROOT / "templates")
+SAMPLES_DIR = str(_STORAGE_ROOT / "samples")
+HISTORY_FILE = str(_STORAGE_ROOT / "file_history.json")
+
+_FILENAME_SAFE_RE = re.compile(r"[^A-Za-z0-9._-]")
+
+
+def sanitize_filename(filename: str) -> str:
+    name = os.path.basename(filename or "")
+    name = _FILENAME_SAFE_RE.sub("_", name)
+    name = name.strip(" .")
+    return name or "file"
+
+
+def validate_filename(filename: str) -> str:
+    safe_name = sanitize_filename(filename)
+    if filename != safe_name:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    return safe_name
+
+
+def resolve_safe_path(base_dir: str, filename: str) -> tuple[str, str]:
+    safe_name = validate_filename(filename)
+    base = os.path.abspath(base_dir)
+    path = os.path.abspath(os.path.join(base, safe_name))
+    if not path.startswith(base + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    return path, safe_name
 
 
 def get_file_history():
@@ -64,7 +113,8 @@ async def upload_file(
     for file in files:
         # Generate unique filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{timestamp}_{file.filename}"
+        safe_original_name = sanitize_filename(file.filename)
+        filename = f"{timestamp}_{safe_original_name}"
         filepath = os.path.join(UPLOADS_DIR, filename)
         
         # Save file
@@ -75,7 +125,7 @@ async def upload_file(
         file_size = os.path.getsize(filepath)
         file_info = {
             "id": filename,
-            "original_name": file.filename,
+            "original_name": safe_original_name,
             "stored_name": filename,
             "category": category,
             "size": file_size,
@@ -148,14 +198,14 @@ async def download_file(file_type: str, filename: str):
     if file_type not in type_map:
         raise HTTPException(status_code=400, detail="Invalid file type")
     
-    filepath = os.path.join(type_map[file_type], filename)
+    filepath, safe_name = resolve_safe_path(type_map[file_type], filename)
     
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found")
     
     return FileResponse(
         path=filepath,
-        filename=filename,
+        filename=safe_name,
         media_type="application/octet-stream"
     )
 
@@ -173,7 +223,7 @@ async def delete_file(file_type: str, filename: str):
     if file_type not in type_map:
         raise HTTPException(status_code=400, detail="Invalid file type")
     
-    filepath = os.path.join(type_map[file_type], filename)
+    filepath, safe_name = resolve_safe_path(type_map[file_type], filename)
     
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found")
@@ -182,7 +232,7 @@ async def delete_file(file_type: str, filename: str):
     
     return {
         "success": True,
-        "message": f"File {filename} deleted successfully"
+        "message": f"File {safe_name} deleted successfully"
     }
 
 
@@ -204,7 +254,7 @@ async def get_history(limit: int = Query(50)):
 async def save_output(data: dict):
     """Save processing output to file"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_name = data.get("name", "output")
+    output_name = sanitize_filename(data.get("name", "output"))
     filename = f"{timestamp}_{output_name}.json"
     filepath = os.path.join(OUTPUTS_DIR, filename)
     
@@ -260,7 +310,7 @@ async def list_templates():
 @router.get("/templates/{filename}")
 async def get_template(filename: str):
     """Get a specific template"""
-    filepath = os.path.join(TEMPLATES_DIR, filename)
+    filepath, safe_name = resolve_safe_path(TEMPLATES_DIR, filename)
     
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Template not found")

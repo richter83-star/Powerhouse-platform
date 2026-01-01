@@ -305,7 +305,7 @@ class RefreshToken(Base):
     
     id = Column(String(36), primary_key=True)
     user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
-    token = Column(String(500), unique=True, nullable=False, index=True)
+    token_hash = Column(String(128), nullable=True)
     tenant_id = Column(String(36), nullable=False, index=True)
     
     # Token status

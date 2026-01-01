@@ -23,15 +23,21 @@ spec:
                 com.docker.compose.service: redis
                 com.docker.compose.network.default: "true"
         spec:
-            restartPolicy: unless-stopped
+            restartPolicy: Always
             containers:
                 - name: powerhouse-redis
                   image: redis:7-alpine
                   imagePullPolicy: IfNotPresent
-                  args:
+                  command:
                     - sh
                     - -c
-                    - redis-server --appendonly yes --requirepass 'securepass123'
+                    - redis-server --appendonly yes --requirepass "$REDIS_PASSWORD"
+                  env:
+                    - name: REDIS_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                            name: powerhouse-secrets
+                            key: REDIS_PASSWORD
                   ports:
                     - name: redis-6379
                       containerPort: 6379

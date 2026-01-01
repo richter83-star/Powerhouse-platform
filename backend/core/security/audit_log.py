@@ -17,6 +17,7 @@ class AuditEventType(Enum):
     AUTH_LOGIN = "auth.login"
     AUTH_LOGOUT = "auth.logout"
     AUTH_FAILED = "auth.failed"
+    AUTH_SIGNUP = "auth.signup"
     AUTH_TOKEN_REFRESH = "auth.token_refresh"
     AUTH_TOKEN_REVOKE = "auth.token_revoke"
     

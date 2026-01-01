@@ -29,12 +29,52 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('command');
   const [mounted, setMounted] = useState(false);
+  const [agentCount, setAgentCount] = useState<number | null>(null);
+  const [systemStatus, setSystemStatus] = useState<'healthy' | 'degraded' | 'unhealthy' | 'unknown'>('unknown');
 
   useEffect(() => {
     setMounted(true);
-    // Allow demo mode without authentication
-    setLoading(false);
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return;
+    }
+    if (status !== 'loading') {
+      setLoading(false);
+    }
   }, [status, router]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      return;
+    }
+
+    const fetchOverview = async () => {
+      try {
+        const [agentsRes, healthRes] = await Promise.all([
+          fetch('/api/agents'),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}/api/performance/health`)
+        ]);
+
+        if (agentsRes.ok) {
+          const data = await agentsRes.json();
+          const count = data?.total_count || data?.agents?.length || 0;
+          setAgentCount(count);
+        }
+
+        if (healthRes.ok) {
+          const data = await healthRes.json();
+          const nextStatus = data?.status as 'healthy' | 'degraded' | 'unhealthy' | undefined;
+          if (nextStatus) {
+            setSystemStatus(nextStatus);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard overview:', error);
+      }
+    };
+
+    fetchOverview();
+  }, [status]);
 
   if (loading) {
     return (
@@ -47,7 +87,25 @@ export default function DashboardPage() {
     );
   }
 
-  const displayName = session?.user?.name || 'Demo User';
+  if (status === 'unauthenticated') {
+    return null;
+  }
+
+  const displayName = session?.user?.name || session?.user?.email || 'User';
+  const statusLabel = systemStatus === 'unknown'
+    ? 'Status Unknown'
+    : systemStatus === 'healthy'
+      ? 'System Healthy'
+      : systemStatus === 'degraded'
+        ? 'System Degraded'
+        : 'System Unhealthy';
+  const statusClasses = systemStatus === 'healthy'
+    ? 'bg-green-500/20 border-green-500/30 text-green-300'
+    : systemStatus === 'degraded'
+      ? 'bg-yellow-500/20 border-yellow-500/30 text-yellow-300'
+      : systemStatus === 'unhealthy'
+        ? 'bg-red-500/20 border-red-500/30 text-red-300'
+        : 'bg-slate-500/20 border-slate-500/30 text-slate-300';
 
   return (
     <div className="min-h-screen bg-slate-950 text-white overflow-hidden">
@@ -66,7 +124,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-3 mb-2">
                 <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 backdrop-blur-xl">
                   <Sparkles className="w-3 h-3 mr-1" />
-                  19 AI Agents Active
+                  {agentCount === null ? 'Agents Loading...' : `${agentCount} AI Agents Active`}
                 </Badge>
               </div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
@@ -77,9 +135,9 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-4 py-2 bg-green-500/20 backdrop-blur-xl border border-green-500/30 rounded-xl">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-green-300">System Online</span>
+              <div className={`flex items-center gap-2 px-4 py-2 backdrop-blur-xl border rounded-xl ${statusClasses}`}>
+                <div className={`w-2 h-2 rounded-full ${systemStatus === 'healthy' ? 'bg-green-400' : systemStatus === 'degraded' ? 'bg-yellow-400' : systemStatus === 'unhealthy' ? 'bg-red-400' : 'bg-slate-400'} animate-pulse`}></div>
+                <span className="text-sm font-medium">{statusLabel}</span>
               </div>
             </div>
           </div>

@@ -8,8 +8,8 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel
 
-from backend.core.commercial.tenant_manager import get_tenant_manager, TenantTier
-from backend.core.commercial.usage_tracker import get_usage_tracker
+from core.commercial.tenant_manager import get_tenant_manager, TenantTier
+from core.commercial.usage_tracker import get_usage_tracker
 
 router = APIRouter(prefix="/api/commercial", tags=["Commercial"])
 

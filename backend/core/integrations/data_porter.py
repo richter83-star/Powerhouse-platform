@@ -11,7 +11,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+try:
+    from pydantic import ConfigDict
+except ImportError:  # Pydantic v1 fallback
+    ConfigDict = None
 
 
 class DataFormat(str, Enum):
@@ -33,10 +37,15 @@ class ExportConfig(BaseModel):
 class ImportConfig(BaseModel):
     """Import configuration"""
     format: DataFormat
-    validate: bool = True
+    validate_records: bool = Field(True, alias="validate")
     skip_errors: bool = False
     batch_size: int = 1000
     upsert: bool = False  # Update if exists, insert if not
+    if ConfigDict is not None:
+        model_config = ConfigDict(populate_by_name=True)
+    else:
+        class Config:
+            allow_population_by_field_name = True
 
 
 class ImportResult(BaseModel):
@@ -119,7 +128,7 @@ class DataPorter:
         
         for idx, record in enumerate(records):
             try:
-                if config.validate and validator:
+                if config.validate_records and validator:
                     validator(record)
                 successful_records.append(record)
             except Exception as e:

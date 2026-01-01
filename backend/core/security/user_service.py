@@ -7,10 +7,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 import uuid
 import secrets
+import hashlib
 from passlib.context import CryptContext
 
 from database.models import User, RefreshToken, LoginAttempt, UserTenant, EmailVerification, PasswordReset
 from core.security.rbac import Role
+from core.security.jwt_auth import create_refresh_token as create_refresh_jwt, auth_manager, REFRESH_TOKEN_EXPIRE_DAYS
 import logging
 
 logger = logging.getLogger(__name__)
@@ -188,33 +190,56 @@ class UserService:
         tenant_id: str,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None
-    ) -> RefreshToken:
+    ) -> str:
         """Create a new refresh token."""
-        token = secrets.token_urlsafe(64)
-        expires_at = datetime.utcnow() + timedelta(days=7)
-        
+        token = create_refresh_jwt(user_id, tenant_id)
+        self.store_refresh_token(
+            token=token,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        return token
+
+    def store_refresh_token(
+        self,
+        token: str,
+        user_id: str,
+        tenant_id: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> RefreshToken:
+        """Persist a refresh token hash without storing the raw token."""
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        payload = auth_manager.verify_token(token)
+        expires_at = datetime.utcfromtimestamp(payload["exp"]) if payload and payload.get("exp") else (
+            datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        )
+
         refresh_token = RefreshToken(
             id=str(uuid.uuid4()),
             user_id=user_id,
-            token=token,
+            token_hash=token_hash,
             tenant_id=tenant_id,
             expires_at=expires_at,
             ip_address=ip_address,
             user_agent=user_agent,
-            is_revoked=0
+            is_revoked=0,
         )
-        
+
         self.db.add(refresh_token)
         self.db.commit()
         self.db.refresh(refresh_token)
-        
+
         return refresh_token
     
     def get_refresh_token(self, token: str) -> Optional[RefreshToken]:
         """Get refresh token by token string."""
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
         return self.db.query(RefreshToken).filter(
             and_(
-                RefreshToken.token == token,
+                RefreshToken.token_hash == token_hash,
                 RefreshToken.is_revoked == 0,
                 RefreshToken.expires_at > datetime.utcnow()
             )

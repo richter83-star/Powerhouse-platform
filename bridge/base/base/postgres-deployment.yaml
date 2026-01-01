@@ -23,18 +23,27 @@ spec:
                 com.docker.compose.service: postgres
                 com.docker.compose.network.default: "true"
         spec:
-            restartPolicy: unless-stopped
+            restartPolicy: Always
             containers:
                 - name: powerhouse-db
                   image: postgres:15-alpine
                   imagePullPolicy: IfNotPresent
                   env:
                     - name: POSTGRES_DB
-                      value: "powerhouse"
+                      valueFrom:
+                        secretKeyRef:
+                            name: powerhouse-secrets
+                            key: POSTGRES_DB
                     - name: POSTGRES_PASSWORD
-                      value: "securepass123"
+                      valueFrom:
+                        secretKeyRef:
+                            name: powerhouse-secrets
+                            key: POSTGRES_PASSWORD
                     - name: POSTGRES_USER
-                      value: "powerhouse_user"
+                      valueFrom:
+                        secretKeyRef:
+                            name: powerhouse-secrets
+                            key: POSTGRES_USER
                   livenessProbe:
                     exec:
                         command:

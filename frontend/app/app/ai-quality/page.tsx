@@ -1,27 +1,22 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  LineChart, 
-  Line, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
 } from "recharts";
 import {
   GitBranch,
@@ -29,12 +24,9 @@ import {
   Database,
   Brain,
   Activity,
-  CheckCircle2,
-  AlertCircle,
-  ArrowUpRight,
-  Play,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  AlertCircle
 } from "lucide-react";
 
 interface Stats {
@@ -73,12 +65,23 @@ interface Dataset {
   quality_score: number;
 }
 
+interface TrendPoint {
+  period: string;
+  accuracy?: number;
+  latency?: number;
+}
+
 export default function AIQualityPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [models, setModels] = useState<ModelVersion[]>([]);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [qualityTrends, setQualityTrends] = useState<TrendPoint[]>([]);
+  const [featureImportance, setFeatureImportance] = useState<{ feature: string; importance: number }[]>([]);
+  const [decisionPatterns, setDecisionPatterns] = useState<any | null>(null);
+  const [modelId, setModelId] = useState("");
+  const [modelLoading, setModelLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -87,46 +90,52 @@ export default function AIQualityPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch stats
-      const statsRes = await fetch("http://localhost:8000/ai-quality/stats");
-      if (statsRes.ok) {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+      const results = await Promise.allSettled([
+        fetch(`${apiUrl}/ai-quality/stats`),
+        fetch(`${apiUrl}/ai-quality/datasets`),
+        fetch(`${apiUrl}/ai-quality/metrics/accuracy/trends`),
+        fetch(`${apiUrl}/ai-quality/metrics/latency/trends`)
+      ]);
+
+      const statsRes = results[0].status === "fulfilled" ? results[0].value : null;
+      const datasetsRes = results[1].status === "fulfilled" ? results[1].value : null;
+      const accuracyRes = results[2].status === "fulfilled" ? results[2].value : null;
+      const latencyRes = results[3].status === "fulfilled" ? results[3].value : null;
+
+      if (statsRes?.ok) {
         const statsData = await statsRes.json();
         setStats(statsData);
       }
 
-      // Fetch datasets
-      const datasetsRes = await fetch("http://localhost:8000/ai-quality/datasets");
-      if (datasetsRes.ok) {
+      if (datasetsRes?.ok) {
         const datasetsData = await datasetsRes.json();
         setDatasets(datasetsData.datasets || []);
       }
 
-      // Simulate some model versions for demo
-      setModels([
-        {
-          model_id: "gpt-compliance-v1",
-          version: "2.4.1",
-          created_at: new Date().toISOString(),
-          metrics: { accuracy: 0.94, latency: 125 },
-          status: "active"
-        },
-        {
-          model_id: "claude-analyzer",
-          version: "1.8.3",
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-          metrics: { accuracy: 0.91, latency: 98 },
-          status: "testing"
-        },
-        {
-          model_id: "bert-classifier",
-          version: "3.2.0",
-          created_at: new Date(Date.now() - 172800000).toISOString(),
-          metrics: { accuracy: 0.89, latency: 45 },
-          status: "archived"
-        }
-      ]);
+      let accuracyTrends: any[] = [];
+      let latencyTrends: any[] = [];
 
+      if (accuracyRes?.ok) {
+        const accuracyData = await accuracyRes.json();
+        accuracyTrends = accuracyData?.trends || [];
+      }
+      if (latencyRes?.ok) {
+        const latencyData = await latencyRes.json();
+        latencyTrends = latencyData?.trends || [];
+      }
+
+      const baseTrends = accuracyTrends.length ? accuracyTrends : latencyTrends;
+      if (baseTrends.length > 0) {
+        const merged = baseTrends.map((point, idx) => ({
+          period: new Date(point.period).toLocaleTimeString(),
+          accuracy: accuracyTrends[idx]?.value ?? 0,
+          latency: latencyTrends[idx]?.value ?? 0
+        }));
+        setQualityTrends(merged);
+      } else {
+        setQualityTrends([]);
+      }
     } catch (error) {
       console.error("Error fetching AI quality data:", error);
     } finally {
@@ -134,31 +143,58 @@ export default function AIQualityPage() {
     }
   };
 
-  // Mock data for charts
-  const qualityTrends = [
-    { period: "Week 1", accuracy: 0.85, latency: 150, quality_score: 78 },
-    { period: "Week 2", accuracy: 0.87, latency: 145, quality_score: 82 },
-    { period: "Week 3", accuracy: 0.89, latency: 138, quality_score: 85 },
-    { period: "Week 4", accuracy: 0.92, latency: 125, quality_score: 89 },
-    { period: "Week 5", accuracy: 0.94, latency: 115, quality_score: 92 }
-  ];
+  const fetchModelDetails = async () => {
+    if (!modelId.trim()) {
+      return;
+    }
 
-  const featureImportance = [
-    { feature: "document_length", importance: 0.28 },
-    { feature: "keyword_density", importance: 0.22 },
-    { feature: "clause_complexity", importance: 0.18 },
-    { feature: "entity_count", importance: 0.15 },
-    { feature: "readability_score", importance: 0.10 },
-    { feature: "sentiment", importance: 0.07 }
-  ];
+    setModelLoading(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+      const results = await Promise.allSettled([
+        fetch(`${apiUrl}/ai-quality/models/${modelId}/versions`),
+        fetch(`${apiUrl}/ai-quality/models/${modelId}/feature-importance`),
+        fetch(`${apiUrl}/ai-quality/models/${modelId}/decision-patterns`)
+      ]);
 
-  const modelComparison = [
-    { metric: "Accuracy", modelA: 0.92, modelB: 0.94 },
-    { metric: "Precision", modelA: 0.89, modelB: 0.91 },
-    { metric: "Recall", modelA: 0.90, modelB: 0.93 },
-    { metric: "F1-Score", modelA: 0.895, modelB: 0.92 },
-    { metric: "Latency", modelA: 135, modelB: 125 }
-  ];
+      const versionsRes = results[0].status === "fulfilled" ? results[0].value : null;
+      const importanceRes = results[1].status === "fulfilled" ? results[1].value : null;
+      const patternsRes = results[2].status === "fulfilled" ? results[2].value : null;
+
+      if (versionsRes?.ok) {
+        const versionsData = await versionsRes.json();
+        setModels(versionsData?.versions || []);
+      } else {
+        setModels([]);
+      }
+
+      if (importanceRes?.ok) {
+        const importanceData = await importanceRes.json();
+        const features = importanceData?.feature_importance || {};
+        const entries = Object.entries(features).map(([feature, value]) => ({
+          feature,
+          importance: Number(value)
+        }));
+        setFeatureImportance(entries);
+      } else {
+        setFeatureImportance([]);
+      }
+
+      if (patternsRes?.ok) {
+        const patternsData = await patternsRes.json();
+        setDecisionPatterns(patternsData?.error ? null : patternsData);
+      } else {
+        setDecisionPatterns(null);
+      }
+    } catch (error) {
+      console.error("Error fetching model details:", error);
+      setModels([]);
+      setFeatureImportance([]);
+      setDecisionPatterns(null);
+    } finally {
+      setModelLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -255,64 +291,64 @@ export default function AIQualityPage() {
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            {/* Quality Trends */}
             <Card className="col-span-1">
               <CardHeader>
                 <CardTitle>Quality Trends</CardTitle>
-                <CardDescription>Model performance over time</CardDescription>
+                <CardDescription>Accuracy and latency trends</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={qualityTrends}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="period" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="quality_score" stroke="#8b5cf6" strokeWidth={2} />
-                    <Line type="monotone" dataKey="accuracy" stroke="#10b981" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
+                {qualityTrends.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No quality trend data available.</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={qualityTrends}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="period" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="accuracy" stroke="#10b981" strokeWidth={2} />
+                      <Line type="monotone" dataKey="latency" stroke="#f59e0b" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
-            {/* Feature Importance */}
             <Card className="col-span-1">
               <CardHeader>
                 <CardTitle>Feature Importance</CardTitle>
                 <CardDescription>Top factors influencing predictions</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={featureImportance} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis dataKey="feature" type="category" width={150} />
-                    <Tooltip />
-                    <Bar dataKey="importance" fill="#8b5cf6" />
-                  </BarChart>
-                </ResponsiveContainer>
+                {featureImportance.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    Load a model to view feature importance.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={featureImportance} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" />
+                      <YAxis dataKey="feature" type="category" width={150} />
+                      <Tooltip />
+                      <Bar dataKey="importance" fill="#8b5cf6" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Model Comparison */}
           <Card>
             <CardHeader>
-              <CardTitle>A/B Test: Model Comparison</CardTitle>
-              <CardDescription>Comparing gpt-compliance-v1 v2.3 vs v2.4</CardDescription>
+              <CardTitle>Model Comparison</CardTitle>
+              <CardDescription>Use A/B tests to compare model versions</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <RadarChart data={modelComparison}>
-                  <PolarGrid />
-                  <PolarAngleAxis dataKey="metric" />
-                  <PolarRadiusAxis />
-                  <Radar name="Model A (v2.3)" dataKey="modelA" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
-                  <Radar name="Model B (v2.4)" dataKey="modelB" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.3} />
-                  <Legend />
-                </RadarChart>
-              </ResponsiveContainer>
+              <div className="text-sm text-muted-foreground">
+                No active A/B test summaries available. Create an A/B test to compare model performance.
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -322,117 +358,74 @@ export default function AIQualityPage() {
           <Card>
             <CardHeader>
               <CardTitle>Model Versions</CardTitle>
-              <CardDescription>Manage and track model versions</CardDescription>
+              <CardDescription>Load a model ID to view registered versions</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {models.map((model, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold">{model.model_id}</h3>
-                        <Badge variant={model.status === "active" ? "default" : "secondary"}>
-                          {model.status}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">Version {model.version}</p>
-                      <div className="flex gap-4 mt-2 text-sm">
-                        <span>Accuracy: {(model.metrics.accuracy * 100).toFixed(1)}%</span>
-                        <span>Latency: {model.metrics.latency}ms</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {model.status !== "active" && (
-                        <Button size="sm" variant="outline">
-                          <Play className="h-4 w-4 mr-1" />
-                          Activate
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline">
-                        <RotateCcw className="h-4 w-4 mr-1" />
-                        Rollback
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+            <CardContent className="space-y-4">
+              <div className="flex flex-col md:flex-row gap-2">
+                <Input
+                  placeholder="Enter model ID (e.g. compliance-model)"
+                  value={modelId}
+                  onChange={(event) => setModelId(event.target.value)}
+                />
+                <Button onClick={fetchModelDetails} disabled={!modelId || modelLoading}>
+                  {modelLoading ? "Loading..." : "Load Model"}
+                </Button>
               </div>
+
+              {models.length > 0 ? (
+                <div className="space-y-4">
+                  {models.map((model, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold">{model.model_id}</h3>
+                          <Badge variant={model.status === "active" ? "default" : "secondary"}>
+                            {model.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">Version {model.version}</p>
+                        <div className="flex gap-4 mt-2 text-sm">
+                          {Object.entries(model.metrics || {}).slice(0, 2).map(([key, value]) => (
+                            <span key={key}>{key}: {value}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(model.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <GitBranch className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No versions loaded</p>
+                  <p className="text-sm">Enter a model ID to retrieve versions</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* Quality Tab */}
         <TabsContent value="quality" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Quality Dimensions</CardTitle>
-                <CardDescription>Comprehensive quality assessment</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { name: "Accuracy", score: 94, status: "excellent" },
-                    { name: "Relevance", score: 89, status: "good" },
-                    { name: "Coherence", score: 92, status: "excellent" },
-                    { name: "Completeness", score: 87, status: "good" },
-                    { name: "Latency", score: 78, status: "fair" },
-                    { name: "Error Rate", score: 95, status: "excellent" }
-                  ].map((dim, idx) => (
-                    <div key={idx} className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>{dim.name}</span>
-                        <span className="font-medium">{dim.score}%</span>
-                      </div>
-                      <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${
-                            dim.status === "excellent"
-                              ? "bg-green-500"
-                              : dim.status === "good"
-                              ? "bg-blue-500"
-                              : "bg-yellow-500"
-                          }`}
-                          style={{ width: `${dim.score}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+          <Card>
+            <CardHeader>
+              <CardTitle>Quality Metrics</CardTitle>
+              <CardDescription>Quality metrics are recorded via the metrics collector</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">No detailed quality breakdown available</p>
+                  <p className="text-xs text-muted-foreground">
+                    Record accuracy, latency, and relevance metrics to populate this view.
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Anomalies</CardTitle>
-                <CardDescription>Detected quality issues</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg">
-                    <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">High latency spike</p>
-                      <p className="text-xs text-muted-foreground">
-                        Latency exceeded 200ms threshold
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">2 hours ago</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-3 p-3 bg-green-50 dark:bg-green-950 rounded-lg">
-                    <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">Quality improvement</p>
-                      <p className="text-xs text-muted-foreground">
-                        Accuracy increased by 3.2%
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">1 day ago</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Datasets Tab */}
@@ -491,37 +484,20 @@ export default function AIQualityPage() {
                 <CardDescription>Understanding model decisions</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Brain className="h-5 w-5 text-primary" />
-                      <h4 className="font-medium">Feature Importance</h4>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      SHAP values show which features contribute most to predictions
-                    </p>
+                {featureImportance.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    Load a model ID to access explainability metrics.
                   </div>
-
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <ArrowUpRight className="h-5 w-5 text-primary" />
-                      <h4 className="font-medium">Counterfactual Analysis</h4>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      What changes would lead to different outcomes
-                    </p>
+                ) : (
+                  <div className="space-y-2">
+                    {featureImportance.slice(0, 6).map((item) => (
+                      <div key={item.feature} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">{item.feature}</span>
+                        <span className="font-medium">{(item.importance * 100).toFixed(1)}%</span>
+                      </div>
+                    ))}
                   </div>
-
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Activity className="h-5 w-5 text-primary" />
-                      <h4 className="font-medium">Attention Visualization</h4>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      See which parts of input received most attention
-                    </p>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -531,39 +507,33 @@ export default function AIQualityPage() {
                 <CardDescription>Analysis of model behavior</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>Average Confidence</span>
-                      <span className="font-medium">87.3%</span>
+                {decisionPatterns ? (
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total Explanations</span>
+                      <span className="font-medium">{decisionPatterns.total_explanations}</span>
                     </div>
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-primary" style={{ width: "87.3%" }} />
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Avg Confidence</span>
+                      <span className="font-medium">
+                        {(decisionPatterns.average_confidence * 100).toFixed(1)}%
+                      </span>
                     </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>Prediction Consistency</span>
-                      <span className="font-medium">92.1%</span>
-                    </div>
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500" style={{ width: "92.1%" }} />
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t">
-                    <h4 className="text-sm font-medium mb-3">Top Influential Features</h4>
-                    <div className="space-y-2">
-                      {featureImportance.slice(0, 5).map((feat, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{feat.feature}</span>
-                          <span className="font-medium">{(feat.importance * 100).toFixed(1)}%</span>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-2">Top Features</p>
+                      {Object.entries(decisionPatterns.top_features || {}).slice(0, 5).map(([feature, value]) => (
+                        <div key={feature} className="flex justify-between text-xs">
+                          <span>{feature}</span>
+                          <span>{(Number(value) * 100).toFixed(1)}%</span>
                         </div>
                       ))}
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    No decision pattern analysis available for this model.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

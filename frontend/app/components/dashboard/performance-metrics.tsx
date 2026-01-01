@@ -1,14 +1,9 @@
-
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
   BarChart,
   Bar,
   XAxis,
@@ -23,71 +18,153 @@ import {
 } from 'recharts';
 import {
   TrendingUp,
-  Clock,
   CheckCircle2,
-  AlertTriangle,
   Activity,
   Zap
 } from 'lucide-react';
 
+interface SystemMetrics {
+  total_tasks: number;
+  successful_tasks: number;
+  failed_tasks: number;
+  partial_tasks: number;
+  success_rate: number;
+  avg_latency_ms: number;
+  p50_latency_ms: number;
+  p95_latency_ms: number;
+  p99_latency_ms: number;
+  max_latency_ms: number;
+  total_tokens: number;
+  total_api_calls: number;
+  total_cost: number;
+  avg_accuracy: number;
+  avg_quality_score: number;
+}
+
+interface AgentMetric {
+  model: string;
+  accuracy: number;
+  latency: number;
+  throughput: number;
+}
+
 export function PerformanceMetrics() {
-  const [performanceData, setPerformanceData] = useState([
-    { time: '00:00', latency: 820, throughput: 145, accuracy: 94.2 },
-    { time: '04:00', latency: 750, throughput: 162, accuracy: 94.8 },
-    { time: '08:00', latency: 680, throughput: 189, accuracy: 95.1 },
-    { time: '12:00', latency: 820, throughput: 178, accuracy: 94.9 },
-    { time: '16:00', latency: 730, throughput: 195, accuracy: 95.3 },
-    { time: '20:00', latency: 690, throughput: 203, accuracy: 95.7 }
-  ]);
+  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null);
+  const [agentMetrics, setAgentMetrics] = useState<AgentMetric[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [taskDistribution, setTaskDistribution] = useState([
-    { name: 'Completed', value: 2847, color: '#10b981' },
-    { name: 'In Progress', value: 234, color: '#3b82f6' },
-    { name: 'Queued', value: 89, color: '#f59e0b' },
-    { name: 'Failed', value: 12, color: '#ef4444' }
-  ]);
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+        const results = await Promise.allSettled([
+          fetch(`${apiUrl}/api/performance/metrics/system?time_window_minutes=60`),
+          fetch(`${apiUrl}/api/performance/metrics/agents?time_window_minutes=60`)
+        ]);
 
-  const [modelMetrics, setModelMetrics] = useState([
-    { model: 'ReAct Agent', accuracy: 96.2, latency: 680, throughput: 245 },
-    { model: 'Evaluator', accuracy: 94.8, latency: 520, throughput: 312 },
-    { model: 'Debate Agent', accuracy: 95.1, latency: 890, throughput: 189 },
-    { model: 'Governor', accuracy: 97.3, latency: 450, throughput: 356 }
-  ]);
+        const systemRes = results[0].status === 'fulfilled' ? results[0].value : null;
+        const agentsRes = results[1].status === 'fulfilled' ? results[1].value : null;
 
-  const [costMetrics, setCostMetrics] = useState([
-    { period: 'Jan', compute: 4200, storage: 1200, api: 800 },
-    { period: 'Feb', compute: 4800, storage: 1350, api: 920 },
-    { period: 'Mar', compute: 5200, storage: 1400, api: 1100 },
-    { period: 'Apr', compute: 4900, storage: 1500, api: 980 },
-    { period: 'May', compute: 5500, storage: 1600, api: 1250 },
-    { period: 'Jun', compute: 6100, storage: 1700, api: 1400 }
-  ]);
+        if (systemRes?.ok) {
+          const data = await systemRes.json();
+          setSystemMetrics(data?.metrics || null);
+        }
+
+        if (agentsRes?.ok) {
+          const data = await agentsRes.json();
+          const agents = data?.agents || {};
+          const rows: AgentMetric[] = Object.entries(agents).map(([name, detail]: any) => ({
+            model: name,
+            accuracy: (detail?.metrics?.success_rate ?? 0) * 100,
+            latency: detail?.metrics?.avg_latency_ms ?? 0,
+            throughput: detail?.metrics?.total_tasks ?? 0
+          }));
+          setAgentMetrics(rows);
+        }
+      } catch (error) {
+        console.error('Failed to fetch performance metrics:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMetrics();
+  }, []);
+
+  const formatNumber = (value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return '--';
+    }
+    return value.toLocaleString();
+  };
+
+  const formatPercent = (value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return '--';
+    }
+    return `${value.toFixed(1)}%`;
+  };
+
+  const formatLatency = (value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return '--';
+    }
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(2)}s`;
+    }
+    return `${Math.round(value)}ms`;
+  };
+
+  const throughputPerHour = systemMetrics?.total_tasks ?? 0;
+  const accuracyValue = systemMetrics?.avg_accuracy && systemMetrics.avg_accuracy > 0
+    ? systemMetrics.avg_accuracy * 100
+    : (systemMetrics?.avg_quality_score ?? 0) * 100;
+
+  const latencyPercentiles = useMemo(() => {
+    if (!systemMetrics) {
+      return [];
+    }
+    return [
+      { name: 'P50', value: systemMetrics.p50_latency_ms },
+      { name: 'P95', value: systemMetrics.p95_latency_ms },
+      { name: 'P99', value: systemMetrics.p99_latency_ms },
+      { name: 'Max', value: systemMetrics.max_latency_ms }
+    ];
+  }, [systemMetrics]);
+
+  const taskDistribution = useMemo(() => {
+    if (!systemMetrics) {
+      return [];
+    }
+    return [
+      { name: 'Successful', value: systemMetrics.successful_tasks, color: '#10b981' },
+      { name: 'Failed', value: systemMetrics.failed_tasks, color: '#ef4444' },
+      { name: 'Partial', value: systemMetrics.partial_tasks, color: '#f59e0b' }
+    ];
+  }, [systemMetrics]);
+
+  const totalTasks = systemMetrics?.total_tasks ?? 0;
+  const avgCostPerTask = totalTasks > 0
+    ? (systemMetrics?.total_cost ?? 0) / totalTasks
+    : 0;
 
   return (
     <div className="space-y-6">
-      {/* Simulated Data Notice */}
-      <Card className="bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-            <p className="text-sm font-medium text-slate-900">
-              <strong>Demo Mode:</strong> Performance metrics shown are simulated for demonstration. Connect to production systems to display real performance data.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Real-time Performance Indicators */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-3">
               <Activity className="w-8 h-8 opacity-80" />
-              <Badge className="bg-white/20 text-white border-0">Live</Badge>
+              <Badge className="bg-white/20 text-white border-0">Last 60m</Badge>
             </div>
             <p className="text-sm opacity-90 mb-1">Average Latency</p>
-            <p className="text-4xl font-bold">0.73s</p>
-            <p className="text-xs opacity-75 mt-2">↓ 15.2% from baseline</p>
+            <p className="text-4xl font-bold">
+              {systemMetrics ? formatLatency(systemMetrics.avg_latency_ms) : '--'}
+            </p>
+            <p className="text-xs opacity-75 mt-2">
+              {loading ? 'Loading metrics...' : 'Rolling window'}
+            </p>
           </CardContent>
         </Card>
 
@@ -95,11 +172,11 @@ export function PerformanceMetrics() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-3">
               <Zap className="w-8 h-8 opacity-80" />
-              <Badge className="bg-white/20 text-white border-0">Live</Badge>
+              <Badge className="bg-white/20 text-white border-0">Last 60m</Badge>
             </div>
             <p className="text-sm opacity-90 mb-1">Throughput</p>
-            <p className="text-4xl font-bold">203/hr</p>
-            <p className="text-xs opacity-75 mt-2">↑ 24.5% from baseline</p>
+            <p className="text-4xl font-bold">{formatNumber(throughputPerHour)}</p>
+            <p className="text-xs opacity-75 mt-2">tasks/hr</p>
           </CardContent>
         </Card>
 
@@ -107,11 +184,13 @@ export function PerformanceMetrics() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-3">
               <CheckCircle2 className="w-8 h-8 opacity-80" />
-              <Badge className="bg-white/20 text-white border-0">Live</Badge>
+              <Badge className="bg-white/20 text-white border-0">Last 60m</Badge>
             </div>
             <p className="text-sm opacity-90 mb-1">Success Rate</p>
-            <p className="text-4xl font-bold">98.4%</p>
-            <p className="text-xs opacity-75 mt-2">Target: 95%</p>
+            <p className="text-4xl font-bold">
+              {systemMetrics ? formatPercent(systemMetrics.success_rate * 100) : '--'}
+            </p>
+            <p className="text-xs opacity-75 mt-2">based on completed tasks</p>
           </CardContent>
         </Card>
 
@@ -119,104 +198,91 @@ export function PerformanceMetrics() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-3">
               <TrendingUp className="w-8 h-8 opacity-80" />
-              <Badge className="bg-white/20 text-white border-0">Live</Badge>
+              <Badge className="bg-white/20 text-white border-0">Last 60m</Badge>
             </div>
-            <p className="text-sm opacity-90 mb-1">Model Accuracy</p>
-            <p className="text-4xl font-bold">95.7%</p>
-            <p className="text-xs opacity-75 mt-2">↑ 3.2% this week</p>
+            <p className="text-sm opacity-90 mb-1">Accuracy</p>
+            <p className="text-4xl font-bold">
+              {systemMetrics ? formatPercent(accuracyValue) : '--'}
+            </p>
+            <p className="text-xs opacity-75 mt-2">reported accuracy score</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Performance Trends */}
+      {/* Latency Percentiles */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
           <CardHeader>
-            <CardTitle>Latency & Throughput Trends</CardTitle>
-            <CardDescription>24-hour performance monitoring</CardDescription>
+            <CardTitle>Latency Percentiles</CardTitle>
+            <CardDescription>Distribution of response latency in the last hour</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={performanceData}>
-                <defs>
-                  <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorThroughput" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="time" stroke="#64748b" />
-                <YAxis stroke="#64748b" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-                  }} 
-                />
-                <Legend />
-                <Area 
-                  type="monotone" 
-                  dataKey="latency" 
-                  stroke="#3b82f6" 
-                  fillOpacity={1} 
-                  fill="url(#colorLatency)"
-                  name="Latency (ms)"
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="throughput" 
-                  stroke="#10b981" 
-                  fillOpacity={1} 
-                  fill="url(#colorThroughput)"
-                  name="Throughput (tasks/hr)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {latencyPercentiles.length === 0 ? (
+              <div className="text-sm text-slate-600">No latency data available yet.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={latencyPercentiles}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="name" stroke="#64748b" />
+                  <YAxis stroke="#64748b" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="value" fill="#3b82f6" name="Latency (ms)" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
         <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
           <CardHeader>
-            <CardTitle>Task Distribution</CardTitle>
-            <CardDescription>Current task status breakdown</CardDescription>
+            <CardTitle>Task Outcomes</CardTitle>
+            <CardDescription>Success vs failure breakdown</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={taskDistribution}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {taskDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mt-6">
-              {taskDistribution.map((item, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
-                  <span className="text-sm font-medium text-slate-700">{item.name}</span>
-                  <span className="text-sm font-bold text-slate-900 ml-auto">{item.value}</span>
+            {taskDistribution.length === 0 || totalTasks === 0 ? (
+              <div className="text-sm text-slate-600">No task outcomes reported yet.</div>
+            ) : (
+              <>
+                <div className="flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={taskDistribution}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
+                        outerRadius={100}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {taskDistribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+                <div className="grid grid-cols-2 gap-4 mt-6">
+                  {taskDistribution.map((item, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                      <span className="text-sm font-medium text-slate-700">{item.name}</span>
+                      <span className="text-sm font-bold text-slate-900 ml-auto">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -225,71 +291,64 @@ export function PerformanceMetrics() {
       <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
         <CardHeader>
           <CardTitle>Agent Model Performance</CardTitle>
-          <CardDescription>Comparative analysis of individual agent models</CardDescription>
+          <CardDescription>Per-agent success rate, latency, and throughput</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={modelMetrics}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="model" stroke="#64748b" />
-              <YAxis stroke="#64748b" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-                }} 
-              />
-              <Legend />
-              <Bar dataKey="accuracy" fill="#10b981" name="Accuracy (%)" />
-              <Bar dataKey="latency" fill="#3b82f6" name="Latency (ms)" />
-              <Bar dataKey="throughput" fill="#f59e0b" name="Throughput" />
-            </BarChart>
-          </ResponsiveContainer>
+          {agentMetrics.length === 0 ? (
+            <div className="text-sm text-slate-600">No agent metrics available yet.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={agentMetrics}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="model" stroke="#64748b" />
+                <YAxis stroke="#64748b" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                  }}
+                />
+                <Legend />
+                <Bar dataKey="accuracy" fill="#10b981" name="Success Rate (%)" />
+                <Bar dataKey="latency" fill="#3b82f6" name="Avg Latency (ms)" />
+                <Bar dataKey="throughput" fill="#f59e0b" name="Tasks" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </CardContent>
       </Card>
 
-      {/* Cost Analysis */}
+      {/* Cost Summary */}
       <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
         <CardHeader>
-          <CardTitle>Resource Cost Analysis</CardTitle>
-          <CardDescription>Monthly operational expenses breakdown</CardDescription>
+          <CardTitle>Cost Summary</CardTitle>
+          <CardDescription>Aggregate resource usage from the last hour</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={costMetrics}>
-              <defs>
-                <linearGradient id="colorCompute" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorStorage" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorAPI" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="period" stroke="#64748b" />
-              <YAxis stroke="#64748b" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-                }} 
-              />
-              <Legend />
-              <Area type="monotone" dataKey="compute" stackId="1" stroke="#3b82f6" fill="url(#colorCompute)" name="Compute ($)" />
-              <Area type="monotone" dataKey="storage" stackId="1" stroke="#8b5cf6" fill="url(#colorStorage)" name="Storage ($)" />
-              <Area type="monotone" dataKey="api" stackId="1" stroke="#10b981" fill="url(#colorAPI)" name="API Calls ($)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {systemMetrics ? (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="p-4 border border-slate-200 rounded-lg">
+                <p className="text-xs text-slate-500">Total Cost</p>
+                <p className="text-lg font-bold text-slate-900">${(systemMetrics.total_cost || 0).toFixed(4)}</p>
+              </div>
+              <div className="p-4 border border-slate-200 rounded-lg">
+                <p className="text-xs text-slate-500">Tokens Used</p>
+                <p className="text-lg font-bold text-slate-900">{formatNumber(systemMetrics.total_tokens)}</p>
+              </div>
+              <div className="p-4 border border-slate-200 rounded-lg">
+                <p className="text-xs text-slate-500">API Calls</p>
+                <p className="text-lg font-bold text-slate-900">{formatNumber(systemMetrics.total_api_calls)}</p>
+              </div>
+              <div className="p-4 border border-slate-200 rounded-lg">
+                <p className="text-xs text-slate-500">Cost per Task</p>
+                <p className="text-lg font-bold text-slate-900">${avgCostPerTask.toFixed(4)}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-slate-600">Cost data has not been reported yet.</div>
+          )}
         </CardContent>
       </Card>
     </div>

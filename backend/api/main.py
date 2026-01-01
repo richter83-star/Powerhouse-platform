@@ -6,10 +6,12 @@ platform capabilities via HTTP endpoints.
 """
 
 import logging
+import os
 import uuid
 import time
 from datetime import datetime
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -98,6 +100,22 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _acquire_startup_lock(lock_name: str) -> bool:
+    lock_dir = Path(os.getenv("STARTUP_LOCK_DIR", "/tmp"))
+    lock_path = lock_dir / lock_name
+    try:
+        lock_dir.mkdir(parents=True, exist_ok=True)
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(fd, "w") as handle:
+            handle.write(str(os.getpid()))
+        return True
+    except FileExistsError:
+        return False
+    except Exception as exc:
+        logger.warning("Failed to create startup lock %s: %s", lock_path, exc)
+        return True
+
+
 # ============================================================================
 # Lifespan Events
 # ============================================================================
@@ -162,13 +180,19 @@ async def lifespan(app: FastAPI):
         
         # Optimize database (create indexes, etc.)
         if settings.environment == "production":
-            try:
-                from core.database.optimization import optimize_database
-                logger.info("Running database optimization...")
-                optimization_results = optimize_database()
-                logger.info(f"Database optimization complete: {len(optimization_results.get('indexes_created', []))} indexes created")
-            except Exception as e:
-                logger.warning(f"Database optimization failed (non-critical): {e}")
+            if _acquire_startup_lock("powerhouse-db-optimization.lock"):
+                try:
+                    from core.database.optimization import optimize_database
+                    logger.info("Running database optimization...")
+                    optimization_results = optimize_database()
+                    logger.info(
+                        "Database optimization complete: %s indexes created",
+                        len(optimization_results.get("indexes_created", [])),
+                    )
+                except Exception as e:
+                    logger.warning(f"Database optimization failed (non-critical): {e}")
+            else:
+                logger.info("Skipping database optimization; startup lock already held")
     except Exception as e:
         logger.error(f"Failed to create database tables: {e}")
     # Ensure a default tenant exists for single-tenant flows

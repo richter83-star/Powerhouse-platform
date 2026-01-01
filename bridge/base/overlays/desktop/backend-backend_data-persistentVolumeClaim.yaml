@@ -1,0 +1,9 @@
+#! backend-backend_data-persistentVolumeClaim.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+    name: backend-backend-data
+    namespace: powerhouse-platform
+spec:
+    storageClassName: "hostpath" # see docker/desktop-storage-provisioner

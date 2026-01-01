@@ -70,21 +70,9 @@ REM ================================================================
 echo [2/3] Setting up configuration...
 echo.
 
-if not exist "backend\.env" (
-    echo Creating backend\.env...
-    powershell -Command "@'
-DB_HOST=postgres
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_NAME=powerhouse
-DATABASE_URL=postgresql://postgres:postgres@postgres:5432/powerhouse
-REDIS_HOST=redis
-REDIS_PORT=6379
-REDIS_URL=redis://powerhouse_redis:6379/0
-SECRET_KEY=your-secret-key-change-in-production-use-minimum-32-chars
-JWT_SECRET_KEY=your-jwt-secret-key-change-in-production-use-minimum-32-chars
-'@ | Out-File -FilePath 'backend\.env' -Encoding utf8"
+if not exist ".env" (
+    echo Creating .env...
+    powershell -NoProfile -Command "$ErrorActionPreference = 'Stop'; function New-Secret([int]$bytes) { $data = New-Object byte[] $bytes; [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($data); [Convert]::ToBase64String($data).TrimEnd('=').Replace('+','-').Replace('/','_') }; $secret = New-Secret 48; $jwt = New-Secret 48; $next = New-Secret 48; $pg = New-Secret 24; $redis = New-Secret 24; $lines = @('S3_BUCKET=','S3_REGION=','AWS_ACCESS_KEY_ID=','AWS_SECRET_ACCESS_KEY=','SECRET_KEY=' + $secret,'JWT_SECRET_KEY=' + $jwt,'NEXTAUTH_SECRET=' + $next,'DEBUG=False','POSTGRES_USER=powerhouse_user','POSTGRES_PASSWORD=' + $pg,'POSTGRES_DB=powerhouse','REDIS_PASSWORD=' + $redis); $lines | Set-Content -Path '.env' -Encoding utf8"
     echo [✓] Created
 )
 

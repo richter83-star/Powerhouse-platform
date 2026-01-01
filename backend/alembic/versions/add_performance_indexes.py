@@ -18,24 +18,22 @@ depends_on = None
 
 def upgrade():
     """Add performance indexes for common query patterns."""
-    # User indexes
-    op.create_index('idx_users_email', 'users', ['email'], unique=False)
-    
-    # Run indexes
-    op.create_index('idx_runs_tenant_status', 'runs', ['tenant_id', 'status'], unique=False)
-    op.create_index('idx_runs_created', 'runs', ['created_at'], unique=False)
-    
-    # AgentRun indexes
-    op.create_index('idx_agent_runs_run_id', 'agent_runs', ['run_id'], unique=False)
-    op.create_index('idx_agent_runs_tenant', 'agent_runs', ['tenant_id'], unique=False)
-    
-    # Message indexes
-    op.create_index('idx_messages_run_id', 'messages', ['run_id'], unique=False)
-    op.create_index('idx_messages_tenant', 'messages', ['tenant_id'], unique=False)
-    
-    # UserTenant indexes
-    op.create_index('idx_user_tenants_user', 'user_tenants', ['user_id'], unique=False)
-    op.create_index('idx_user_tenants_tenant', 'user_tenants', ['tenant_id'], unique=False)
+    indexes = [
+        ("idx_users_email", "users", "email"),
+        ("idx_runs_tenant_status", "runs", "tenant_id, status"),
+        ("idx_runs_created", "runs", "created_at"),
+        ("idx_agent_runs_run_id", "agent_runs", "run_id"),
+        ("idx_agent_runs_tenant", "agent_runs", "tenant_id"),
+        ("idx_messages_run_id", "messages", "run_id"),
+        ("idx_messages_tenant", "messages", "tenant_id"),
+        ("idx_user_tenants_user", "user_tenants", "user_id"),
+        ("idx_user_tenants_tenant", "user_tenants", "tenant_id"),
+    ]
+
+    for index_name, table_name, columns in indexes:
+        op.execute(
+            f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({columns})"
+        )
 
 
 def downgrade():

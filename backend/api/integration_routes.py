@@ -10,7 +10,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from ..core.integrations import (
+from core.integrations import (
     APICredentials,
     AuthType,
     DataFormat,
@@ -161,7 +161,7 @@ class ConnectorCreate(BaseModel):
 @router.post("/connectors")
 async def create_connector(data: ConnectorCreate):
     """Register a new API connector"""
-    from ..core.integrations.api_connector import APIConnector
+    from core.integrations.api_connector import APIConnector
     
     # Create a generic connector
     class GenericConnector(APIConnector):
@@ -375,7 +375,7 @@ async def import_data(
     
     config = ImportConfig(
         format=format,
-        validate=validate,
+        validate_records=validate,
         skip_errors=skip_errors
     )
     

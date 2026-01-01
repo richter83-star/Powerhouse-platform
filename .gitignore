@@ -9,6 +9,7 @@
 *.env
 .envrc
 secrets/
+bridge/base/base/powerhouse-secrets.yaml
 *.pem
 *.key
 *.cert

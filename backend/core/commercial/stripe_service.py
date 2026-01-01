@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # Initialize Stripe
 if settings.stripe_secret_key:
     stripe.api_key = settings.stripe_secret_key
-else:
+elif settings.environment == "production":
     logger.warning("Stripe secret key not configured. Stripe functionality will be disabled.")
 
 

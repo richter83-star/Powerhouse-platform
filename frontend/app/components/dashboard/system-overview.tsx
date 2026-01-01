@@ -4,155 +4,253 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import {
-  Activity,
-  Brain,
-  Cpu,
-  Database,
   Network,
-  TrendingUp,
-  Zap,
   AlertCircle,
   CheckCircle2,
   Clock,
-  Target,
-  ArrowUpRight,
-  ArrowDownRight,
-  Info
+  Database
 } from 'lucide-react';
 
 interface SystemMetric {
   label: string;
   value: string;
-  change: number;
-  trend: 'up' | 'down';
-  status: 'success' | 'warning' | 'error' | 'neutral';
-  isReal: boolean;
+  note?: string;
+}
+
+interface HealthItem {
+  label: string;
+  status: 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
+  detail: string;
+}
+
+interface TelemetrySummary {
+  counters: number;
+  gauges: number;
+  histograms: number;
+  checkpoints: number;
+  openCircuits: number;
+  totalCircuits: number;
 }
 
 export function SystemOverview() {
-  const [agentCount, setAgentCount] = useState<number>(0);
+  const [agentCount, setAgentCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [metrics, setMetrics] = useState<SystemMetric[]>([
-    { label: 'Active Agents', value: '0', change: 8.3, trend: 'up', status: 'success', isReal: true },
-    { label: 'Tasks Completed', value: '2,847', change: 12.5, trend: 'up', status: 'success', isReal: false },
-    { label: 'Avg Response Time', value: '0.82s', change: -15.2, trend: 'down', status: 'success', isReal: false },
-    { label: 'Success Rate', value: '98.4%', change: 2.1, trend: 'up', status: 'success', isReal: false },
-    { label: 'Model Accuracy', value: '94.7%', change: 3.2, trend: 'up', status: 'success', isReal: false },
-    { label: 'System Load', value: '42%', change: -5.1, trend: 'down', status: 'success', isReal: false }
-  ]);
+  const [metrics, setMetrics] = useState<SystemMetric[]>([]);
+  const [healthItems, setHealthItems] = useState<HealthItem[]>([]);
+  const [telemetry, setTelemetry] = useState<TelemetrySummary | null>(null);
+  const [recommendations, setRecommendations] = useState<string[]>([]);
 
   useEffect(() => {
-    fetchAgentCount();
+    fetchOverview();
   }, []);
 
-  const fetchAgentCount = async () => {
+  const fetchOverview = async () => {
     try {
-      const response = await fetch('/api/agents');
-      if (response.ok) {
-        const data = await response.json();
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+      const results = await Promise.allSettled([
+        fetch('/api/agents'),
+        fetch(`${apiUrl}/api/performance/metrics/system?time_window_minutes=60`),
+        fetch(`${apiUrl}/api/performance/health`),
+        fetch(`${apiUrl}/api/performance/report?include_agents=false&time_window_minutes=60`),
+        fetch(`${apiUrl}/api/observability/health`)
+      ]);
+
+      const agentsRes = results[0].status === 'fulfilled' ? results[0].value : null;
+      const metricsRes = results[1].status === 'fulfilled' ? results[1].value : null;
+      const healthRes = results[2].status === 'fulfilled' ? results[2].value : null;
+      const reportRes = results[3].status === 'fulfilled' ? results[3].value : null;
+      const observabilityRes = results[4].status === 'fulfilled' ? results[4].value : null;
+
+      let performanceMetrics: any = null;
+      let performanceHealth: any = null;
+      let reportData: any = null;
+      let observabilityHealth: any = null;
+
+      let currentAgentCount = agentCount;
+      if (agentsRes?.ok) {
+        const data = await agentsRes.json();
         const count = data?.total_count || data?.agents?.length || 0;
+        currentAgentCount = count;
         setAgentCount(count);
-        
-        // Update the Active Agents metric with real data
-        setMetrics(prev => prev.map(m => 
-          m.label === 'Active Agents' 
-            ? { ...m, value: count.toString() }
-            : m
-        ));
+      }
+
+      if (metricsRes?.ok) {
+        const data = await metricsRes.json();
+        performanceMetrics = data?.metrics || null;
+      }
+
+      if (healthRes?.ok) {
+        performanceHealth = await healthRes.json();
+      }
+
+      if (reportRes?.ok) {
+        reportData = await reportRes.json();
+      }
+
+      if (observabilityRes?.ok) {
+        observabilityHealth = await observabilityRes.json();
+      }
+
+      const formatNumber = (value: number | null | undefined) => {
+        if (value === null || value === undefined || Number.isNaN(value)) {
+          return '--';
+        }
+        return value.toLocaleString();
+      };
+
+      const formatPercent = (value: number | null | undefined) => {
+        if (value === null || value === undefined || Number.isNaN(value)) {
+          return '--';
+        }
+        return `${(value * 100).toFixed(1)}%`;
+      };
+
+      const formatLatency = (value: number | null | undefined) => {
+        if (value === null || value === undefined || Number.isNaN(value)) {
+          return '--';
+        }
+        if (value >= 1000) {
+          return `${(value / 1000).toFixed(2)}s`;
+        }
+        return `${Math.round(value)}ms`;
+      };
+
+      const accuracyValue = performanceMetrics?.avg_accuracy && performanceMetrics.avg_accuracy > 0
+        ? performanceMetrics.avg_accuracy
+        : performanceMetrics?.avg_quality_score || null;
+
+      const nextMetrics: SystemMetric[] = [
+        {
+          label: 'Active Agents',
+          value: currentAgentCount === null ? '--' : currentAgentCount.toString(),
+          note: 'Registered agents'
+        },
+        {
+          label: 'Tasks Processed',
+          value: formatNumber(performanceMetrics?.total_tasks),
+          note: 'Last 60 min'
+        },
+        {
+          label: 'Success Rate',
+          value: formatPercent(performanceMetrics?.success_rate),
+          note: 'Last 60 min'
+        },
+        {
+          label: 'Avg Latency',
+          value: formatLatency(performanceMetrics?.avg_latency_ms),
+          note: 'Last 60 min'
+        },
+        {
+          label: 'Error Rate',
+          value: formatPercent(performanceMetrics?.error_rate),
+          note: 'Last 60 min'
+        },
+        {
+          label: 'Accuracy',
+          value: formatPercent(accuracyValue),
+          note: 'Reported accuracy'
+        }
+      ];
+
+      setMetrics(nextMetrics);
+
+      const nextHealthItems: HealthItem[] = [];
+      if (performanceHealth?.status) {
+        nextHealthItems.push({
+          label: 'Performance Monitor',
+          status: performanceHealth.status,
+          detail: `Health score ${performanceHealth.health_score ?? '--'}`
+        });
+      }
+      if (observabilityHealth?.status) {
+        nextHealthItems.push({
+          label: 'Observability',
+          status: observabilityHealth.status,
+          detail: `${observabilityHealth.circuit_breakers?.open ?? 0} open circuit(s)`
+        });
+        nextHealthItems.push({
+          label: 'Checkpoints',
+          status: (observabilityHealth.circuit_breakers?.open ?? 0) > 0 ? 'degraded' : 'healthy',
+          detail: `${observabilityHealth.checkpoints?.total ?? 0} stored`
+        });
+      }
+      if (nextHealthItems.length === 0) {
+        nextHealthItems.push({
+          label: 'System Health',
+          status: 'unknown',
+          detail: 'No health data reported'
+        });
+      }
+      setHealthItems(nextHealthItems);
+
+      if (observabilityHealth) {
+        setTelemetry({
+          counters: observabilityHealth.metrics?.counters ?? 0,
+          gauges: observabilityHealth.metrics?.gauges ?? 0,
+          histograms: observabilityHealth.metrics?.histograms ?? 0,
+          checkpoints: observabilityHealth.checkpoints?.total ?? 0,
+          openCircuits: observabilityHealth.circuit_breakers?.open ?? 0,
+          totalCircuits: observabilityHealth.circuit_breakers?.total ?? 0
+        });
+      }
+
+      const reportRecommendations = reportData?.report?.recommendations || reportData?.recommendations || [];
+      if (Array.isArray(reportRecommendations)) {
+        setRecommendations(reportRecommendations);
       }
     } catch (error) {
-      console.error('Failed to fetch agent count:', error);
+      console.error('Failed to fetch system overview:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const [systemHealth, setSystemHealth] = useState({
-    orchestrator: { status: 'operational', uptime: '99.98%', latency: '23ms' },
-    performance_monitor: { status: 'operational', uptime: '99.95%', latency: '12ms' },
-    learning_system: { status: 'operational', uptime: '99.92%', latency: '45ms' },
-    plugin_system: { status: 'operational', uptime: '99.99%', latency: '8ms' },
-    cicd_pipeline: { status: 'operational', uptime: '99.87%', latency: '156ms' },
-    database: { status: 'operational', uptime: '99.99%', latency: '5ms' }
-  });
-
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'operational': return 'text-green-600 bg-green-100';
+      case 'healthy': return 'text-green-600 bg-green-100';
       case 'degraded': return 'text-yellow-600 bg-yellow-100';
-      case 'down': return 'text-red-600 bg-red-100';
+      case 'unhealthy': return 'text-red-600 bg-red-100';
       default: return 'text-slate-600 bg-slate-100';
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'operational': return <CheckCircle2 className="w-5 h-5 text-green-600" />;
+      case 'healthy': return <CheckCircle2 className="w-5 h-5 text-green-600" />;
       case 'degraded': return <AlertCircle className="w-5 h-5 text-yellow-600" />;
-      case 'down': return <AlertCircle className="w-5 h-5 text-red-600" />;
+      case 'unhealthy': return <AlertCircle className="w-5 h-5 text-red-600" />;
       default: return <Clock className="w-5 h-5 text-slate-600" />;
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Data Source Note */}
-      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-slate-900">
-                <span className="inline-flex items-center gap-1">
-                  <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
-                  <strong>Real-time Data</strong>
-                </span>
-                {' '}shows live system metrics | {' '}
-                <span className="inline-flex items-center gap-1">
-                  <span className="inline-block w-2 h-2 bg-amber-500 rounded-full"></span>
-                  <strong>Simulated Data</strong>
-                </span>
-                {' '}represents demo values for visualization purposes
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Key Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {metrics.map((metric, index) => (
-          <Card key={index} className={`backdrop-blur-sm border-slate-200 hover:shadow-lg transition-all duration-300 ${
-            metric.isReal ? 'bg-green-50/80 border-green-300' : 'bg-amber-50/80 border-amber-300'
-          }`}>
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-slate-600">{metric.label}</p>
-                  <div className={`w-2 h-2 rounded-full ${metric.isReal ? 'bg-green-500' : 'bg-amber-500'}`} title={metric.isReal ? 'Real-time data' : 'Simulated data'}></div>
-                </div>
-                <div className={`flex items-center gap-1 text-xs font-semibold ${
-                  metric.trend === 'up' 
-                    ? metric.status === 'success' ? 'text-green-600' : 'text-red-600'
-                    : metric.status === 'success' ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {metric.trend === 'up' ? (
-                    <ArrowUpRight className="w-3 h-3" />
-                  ) : (
-                    <ArrowDownRight className="w-3 h-3" />
-                  )}
-                  {Math.abs(metric.change)}%
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-slate-900">{metric.value}</p>
-              <p className="text-xs text-slate-500 mt-2">
-                {metric.isReal ? 'Live data' : 'Demo value'}
-              </p>
+        {metrics.length === 0 ? (
+          <Card className="col-span-full bg-white/80 backdrop-blur-sm border-slate-200">
+            <CardContent className="p-6 text-center text-slate-600">
+              {loading ? 'Loading metrics...' : 'No system metrics available yet'}
             </CardContent>
           </Card>
-        ))}
+        ) : (
+          metrics.map((metric, index) => (
+            <Card key={index} className="bg-white/80 backdrop-blur-sm border-slate-200 hover:shadow-lg transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-3">
+                  <p className="text-sm font-medium text-slate-600">{metric.label}</p>
+                </div>
+                <p className="text-3xl font-bold text-slate-900">{metric.value}</p>
+                {metric.note && (
+                  <p className="text-xs text-slate-500 mt-2">
+                    {metric.note}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* System Health Status */}
@@ -168,28 +266,24 @@ export function SystemOverview() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.entries(systemHealth).map(([component, data]) => (
-              <div key={component} className="p-4 border border-slate-200 rounded-lg hover:border-blue-300 transition-colors">
+            {healthItems.map((item) => (
+              <div key={item.label} className="p-4 border border-slate-200 rounded-lg hover:border-blue-300 transition-colors">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold text-slate-900 capitalize">
-                    {component.replace(/_/g, ' ')}
+                  <h4 className="font-semibold text-slate-900">
+                    {item.label}
                   </h4>
-                  {getStatusIcon(data.status)}
+                  {getStatusIcon(item.status)}
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600">Status</span>
-                    <Badge className={getStatusColor(data.status)}>
-                      {data.status}
+                    <Badge className={getStatusColor(item.status)}>
+                      {item.status}
                     </Badge>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Uptime</span>
-                    <span className="font-semibold text-slate-900">{data.uptime}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Latency</span>
-                    <span className="font-semibold text-slate-900">{data.latency}</span>
+                    <span className="text-slate-600">Details</span>
+                    <span className="font-semibold text-slate-900">{item.detail}</span>
                   </div>
                 </div>
               </div>
@@ -198,80 +292,74 @@ export function SystemOverview() {
         </CardContent>
       </Card>
 
-      {/* Resource Utilization */}
+      {/* Telemetry Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Cpu className="w-5 h-5 text-purple-600" />
-              Computational Resources
+              <Database className="w-5 h-5 text-purple-600" />
+              Observability Telemetry
             </CardTitle>
-            <CardDescription>Current system resource allocation and usage</CardDescription>
+            <CardDescription>Live counters and health metadata from observability</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-sm font-medium text-slate-700">CPU Usage</span>
-                <span className="text-sm font-bold text-slate-900">42.3%</span>
+          <CardContent className="space-y-4">
+            {telemetry ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-slate-500">Counters</p>
+                  <p className="text-lg font-bold text-slate-900">{telemetry.counters}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Gauges</p>
+                  <p className="text-lg font-bold text-slate-900">{telemetry.gauges}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Histograms</p>
+                  <p className="text-lg font-bold text-slate-900">{telemetry.histograms}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Checkpoints</p>
+                  <p className="text-lg font-bold text-slate-900">{telemetry.checkpoints}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Open Circuits</p>
+                  <p className="text-lg font-bold text-slate-900">{telemetry.openCircuits}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Total Circuits</p>
+                  <p className="text-lg font-bold text-slate-900">{telemetry.totalCircuits}</p>
+                </div>
               </div>
-              <Progress value={42.3} className="h-3" />
-              <p className="text-xs text-slate-500 mt-1">8 cores / 16 threads active</p>
-            </div>
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-sm font-medium text-slate-700">Memory Usage</span>
-                <span className="text-sm font-bold text-slate-900">67.8%</span>
-              </div>
-              <Progress value={67.8} className="h-3" />
-              <p className="text-xs text-slate-500 mt-1">21.7 GB / 32 GB allocated</p>
-            </div>
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-sm font-medium text-slate-700">GPU Utilization</span>
-                <span className="text-sm font-bold text-slate-900">89.2%</span>
-              </div>
-              <Progress value={89.2} className="h-3" />
-              <p className="text-xs text-slate-500 mt-1">NVIDIA A100 - Model inference active</p>
-            </div>
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-sm font-medium text-slate-700">Network I/O</span>
-                <span className="text-sm font-bold text-slate-900">34.5%</span>
-              </div>
-              <Progress value={34.5} className="h-3" />
-              <p className="text-xs text-slate-500 mt-1">↑ 45 Mbps / ↓ 128 Mbps</p>
-            </div>
+            ) : (
+              <p className="text-sm text-slate-600">
+                Observability metrics are not available yet.
+              </p>
+            )}
           </CardContent>
         </Card>
 
         <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Target className="w-5 h-5 text-green-600" />
-              Active Goals & Objectives
+              <Network className="w-5 h-5 text-green-600" />
+              System Recommendations
             </CardTitle>
-            <CardDescription>Autonomous goal-driven behavior tracking</CardDescription>
+            <CardDescription>Actionable guidance from performance monitoring</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {[
-              { goal: 'Optimize Model Accuracy', progress: 78, status: 'in-progress', priority: 'high' },
-              { goal: 'Reduce Response Latency', progress: 92, status: 'in-progress', priority: 'high' },
-              { goal: 'Expand Training Dataset', progress: 45, status: 'in-progress', priority: 'medium' },
-              { goal: 'Plugin Integration Tests', progress: 100, status: 'completed', priority: 'low' }
-            ].map((goal, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-900">{goal.goal}</span>
-                    <Badge variant={goal.priority === 'high' ? 'destructive' : goal.priority === 'medium' ? 'default' : 'secondary'}>
-                      {goal.priority}
-                    </Badge>
-                  </div>
-                  <span className="text-sm font-bold text-slate-900">{goal.progress}%</span>
-                </div>
-                <Progress value={goal.progress} className="h-2" />
-              </div>
-            ))}
+            {recommendations.length > 0 ? (
+              <ul className="space-y-3 text-sm text-slate-700">
+                {recommendations.map((rec, index) => (
+                  <li key={index} className="p-3 border border-slate-200 rounded-lg">
+                    {rec}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-600">
+                No recommendations reported yet.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -15,6 +15,7 @@ from .api_connector import (
     SlackConnector,
     connector_registry,
 )
+from .data_porter import DataFormat, DataPorter, ExportConfig, ImportConfig, data_porter
 from .plugin_loader import Plugin, PluginLoader, PluginMetadata, PluginStatus, plugin_loader
 from .webhook_system import (
     WebhookDelivery,
@@ -47,6 +48,13 @@ __all__ = [
     "SlackConnector",
     "GitHubConnector",
     "connector_registry",
+
+    # Data Porter
+    "DataFormat",
+    "ExportConfig",
+    "ImportConfig",
+    "DataPorter",
+    "data_porter",
     
     # Plugin Loader
     "Plugin",

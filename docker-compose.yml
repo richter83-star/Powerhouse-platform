@@ -4,9 +4,9 @@
     image: postgres:15-alpine
     container_name: powerhouse_db
     environment:
-      POSTGRES_USER: "powerhouse_user"
-      POSTGRES_PASSWORD: "securepass123"
-      POSTGRES_DB: "powerhouse"
+      POSTGRES_USER: "${POSTGRES_USER:-powerhouse_user}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-powerhouse}"
     ports:
       - "5434:5432"
     volumes:
@@ -22,13 +22,14 @@
   redis:
     image: redis:7-alpine
     container_name: powerhouse_redis
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD}"
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
-    command: >
-      sh -c "redis-server --appendonly yes --requirepass 'securepass123'"
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
 
   # Backend API
   backend:
@@ -39,18 +40,18 @@
     env_file:
       - ./.env
     environment:
-      POSTGRES_USER: "powerhouse_user"
-      POSTGRES_PASSWORD: "securepass123"
-      POSTGRES_DB: "powerhouse"
+      POSTGRES_USER: "${POSTGRES_USER:-powerhouse_user}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-powerhouse}"
       DB_HOST: "postgres"
       DB_PORT: "5432"
       REDIS_HOST: "redis"
       REDIS_PORT: "6379"
       
       # URLs
-      DATABASE_URL: "postgresql://powerhouse_user:securepass123@postgres:5432/powerhouse"
-      REDIS_URL: "redis://default:securepass123@redis:6379/0"
-      REDIS_PASSWORD: "securepass123"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-powerhouse_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-powerhouse}"
+      REDIS_URL: "redis://default:${REDIS_PASSWORD}@redis:6379/0"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD}"
       
       # Security
       ALGORITHM: "HS256"
@@ -66,7 +67,6 @@
       SMTP_PORT: 1025
       NEXT_PUBLIC_API_URL: "http://localhost:8001"
       
-    user: "0"
     depends_on:
       postgres:
         condition: service_healthy
@@ -92,7 +92,7 @@
     env_file:
       - ./.env
     environment:
-      DATABASE_URL: "postgresql://powerhouse_user:securepass123@postgres:5432/powerhouse"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-powerhouse_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-powerhouse}"
       NEXTAUTH_URL: "http://localhost:3000"
       NEXT_PUBLIC_API_URL: "http://localhost:8001"
       BACKEND_INTERNAL_URL: "http://backend:8000"
