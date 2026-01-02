@@ -6,14 +6,20 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
+import stripe
+import os
+import logging
+
+from config.settings import settings
+from api.auth import get_current_user
+from api.models import User as APIUser
 from database.session import get_db
 from database.models import (
     Seller, MarketplaceListing, MarketplacePurchase, MarketplaceReview
 )
-import os
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +71,13 @@ class SellerStats(BaseModel):
     total_revenue: float
     rating: float
     active_listings: int
+
+
+def _require_user_id(current_user: APIUser) -> str:
+    user_id = getattr(current_user, "id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authenticated user not found")
+    return user_id
 
 @router.get("/marketplace/listings")
 async def get_listings(
@@ -185,17 +198,20 @@ async def get_listing(listing_id: int, db: Session = Depends(get_db)):
 async def create_listing(
     listing: ListingCreate,
     db: Session = Depends(get_db),
-    user_id: int = 1  # TODO: Get from authentication token
+    current_user: APIUser = Depends(get_current_user)
 ):
     """Create a new marketplace listing"""
     try:
+        user_id = _require_user_id(current_user)
+        display_name = current_user.email or current_user.username
+
         # Get or create seller for user
         seller = db.query(Seller).filter(Seller.user_id == user_id).first()
         if not seller:
             # Create seller if doesn't exist
             seller = Seller(
                 user_id=user_id,
-                display_name=f"User {user_id}",  # TODO: Get from user profile
+                display_name=display_name,
                 bio=None,
                 rating=0.00,
                 total_sales=0,
@@ -254,10 +270,12 @@ async def create_listing(
 async def purchase_item(
     purchase: PurchaseRequest,
     db: Session = Depends(get_db),
-    user_id: int = 1  # TODO: Get from authentication token
+    current_user: APIUser = Depends(get_current_user)
 ):
     """Purchase an item from marketplace"""
     try:
+        user_id = _require_user_id(current_user)
+
         # Get listing
         listing = db.query(MarketplaceListing).filter(
             MarketplaceListing.id == purchase.listing_id,
@@ -276,12 +294,40 @@ async def purchase_item(
         platform_fee = total_amount * 0.15
         seller_amount = total_amount - platform_fee
         
-        # TODO: Process Stripe payment using purchase.payment_method_id
-        # For now, we'll create the purchase record
-        # In production:
-        # 1. Process Stripe payment
-        # 2. Transfer funds to seller
-        # 3. Send notifications
+        if not settings.stripe_secret_key:
+            raise HTTPException(
+                status_code=503,
+                detail="Stripe is not configured for marketplace purchases"
+            )
+
+        stripe.api_key = settings.stripe_secret_key
+        amount_cents = int(
+            (Decimal(str(total_amount)) * Decimal("100")).quantize(
+                Decimal("1"),
+                rounding=ROUND_HALF_UP
+            )
+        )
+        try:
+            payment_intent = stripe.PaymentIntent.create(
+                amount=amount_cents,
+                currency=settings.marketplace_currency,
+                payment_method=purchase.payment_method_id,
+                confirm=True,
+                metadata={
+                    "listing_id": str(listing.id),
+                    "buyer_id": str(user_id),
+                    "seller_id": str(listing.seller_id)
+                }
+            )
+        except stripe.error.StripeError as exc:
+            logger.error(f"Stripe payment failed: {exc}", exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail="Payment processing failed"
+            )
+
+        payment_status = payment_intent.status
+        purchase_status = "completed" if payment_status == "succeeded" else "pending"
         
         # Create purchase record
         purchase_record = MarketplacePurchase(
@@ -291,23 +337,30 @@ async def purchase_item(
             amount=total_amount,
             platform_fee=platform_fee,
             seller_amount=seller_amount,
-            stripe_payment_id=None,  # TODO: Set from Stripe payment
-            status="completed"  # TODO: Start as "pending" until payment confirmed
+            stripe_payment_id=payment_intent.id,
+            status=purchase_status
         )
         
         db.add(purchase_record)
         
-        # Update listing downloads
-        listing.downloads += 1
-        
-        # Update seller stats
-        seller = listing.seller
-        seller.total_sales += 1
-        seller.total_revenue += seller_amount
+        if purchase_status == "completed":
+            # Update listing downloads
+            listing.downloads += 1
+            
+            # Update seller stats
+            seller = listing.seller
+            seller.total_sales += 1
+            seller.total_revenue += seller_amount
         
         db.commit()
         db.refresh(purchase_record)
         
+        message = (
+            "Purchase completed successfully"
+            if purchase_status == "completed"
+            else "Purchase initiated; payment confirmation required"
+        )
+
         return {
             "purchase": {
                 "id": purchase_record.id,
@@ -320,7 +373,11 @@ async def purchase_item(
                 "status": purchase_record.status,
                 "created_at": purchase_record.created_at.isoformat() if purchase_record.created_at else None
             },
-            "message": "Purchase completed successfully"
+            "payment": {
+                "status": payment_status,
+                "client_secret": payment_intent.client_secret
+            },
+            "message": message
         }
     except HTTPException:
         raise
@@ -332,10 +389,12 @@ async def purchase_item(
 @router.get("/marketplace/my-listings")
 async def get_my_listings(
     db: Session = Depends(get_db),
-    user_id: int = 1  # TODO: Get from authentication token
+    current_user: APIUser = Depends(get_current_user)
 ):
     """Get current user's listings"""
     try:
+        user_id = _require_user_id(current_user)
+
         # Get seller for user
         seller = db.query(Seller).filter(Seller.user_id == user_id).first()
         if not seller:
@@ -373,10 +432,12 @@ async def get_my_listings(
 @router.get("/marketplace/my-purchases")
 async def get_my_purchases(
     db: Session = Depends(get_db),
-    user_id: int = 1  # TODO: Get from authentication token
+    current_user: APIUser = Depends(get_current_user)
 ):
     """Get current user's purchases"""
     try:
+        user_id = _require_user_id(current_user)
+
         purchases = db.query(MarketplacePurchase).filter(
             MarketplacePurchase.buyer_id == user_id
         ).order_by(MarketplacePurchase.created_at.desc()).all()
@@ -404,10 +465,12 @@ async def get_my_purchases(
 @router.get("/marketplace/seller-stats")
 async def get_seller_stats(
     db: Session = Depends(get_db),
-    user_id: int = 1  # TODO: Get from authentication token
+    current_user: APIUser = Depends(get_current_user)
 ):
     """Get seller statistics"""
     try:
+        user_id = _require_user_id(current_user)
+
         seller = db.query(Seller).filter(Seller.user_id == user_id).first()
         if not seller:
             return {
@@ -438,10 +501,12 @@ async def get_seller_stats(
 async def delete_listing(
     listing_id: int,
     db: Session = Depends(get_db),
-    user_id: int = 1  # TODO: Get from authentication token
+    current_user: APIUser = Depends(get_current_user)
 ):
     """Delete a listing (soft delete by setting status to 'removed')"""
     try:
+        user_id = _require_user_id(current_user)
+
         listing = db.query(MarketplaceListing).filter(
             MarketplaceListing.id == listing_id
         ).first()

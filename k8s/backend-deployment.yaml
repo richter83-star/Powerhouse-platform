@@ -18,7 +18,7 @@ spec:
         image: powerhouse-backend:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 8001
+        - containerPort: 8000
           name: http
         env:
         - name: DATABASE_URL
@@ -40,7 +40,7 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8001
+            port: 8000
           initialDelaySeconds: 60
           periodSeconds: 30
           timeoutSeconds: 10
@@ -48,7 +48,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /health
-            port: 8001
+            port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
@@ -70,7 +70,7 @@ spec:
     app: powerhouse-backend
   ports:
   - port: 80
-    targetPort: 8001
+    targetPort: 8000
     protocol: TCP
     name: http
   type: ClusterIP

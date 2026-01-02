@@ -57,7 +57,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
     
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    secret = getattr(settings, "jwt_secret_key", None) or settings.secret_key
+    encoded_jwt = jwt.encode(to_encode, secret, algorithm=settings.algorithm)
     
     return encoded_jwt
 
@@ -82,7 +83,8 @@ def decode_access_token(token: str) -> TokenData:
     )
     
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        secret = getattr(settings, "jwt_secret_key", None) or settings.secret_key
+        payload = jwt.decode(token, secret, algorithms=[settings.algorithm])
         username: str = payload.get("sub")
         tenant_id: str = payload.get("tenant_id")
         
@@ -138,6 +140,7 @@ async def get_current_user_from_token(
     
     # Map database user to API user model
     user = User(
+        id=user_db.id,
         username=user_db.email.split('@')[0] if user_db.email else token_data.username,
         email=user_db.email,
         tenant_id=token_data.tenant_id or "default-tenant",
@@ -211,6 +214,7 @@ async def get_current_user(
         
         if user_db:
             return User(
+                id=user_db.id,
                 username="api_user",
                 email=user_db.email,
                 tenant_id="api-tenant",
@@ -263,6 +267,7 @@ def authenticate_user(username: str, password: str) -> Optional[User]:
     
     # Map to API user model
     user = User(
+        id=user_db.id,
         username=user_db.email.split('@')[0] if user_db.email else username,
         email=user_db.email,
         tenant_id=getattr(user_db, 'tenant_id', 'default-tenant'),
@@ -307,6 +312,7 @@ async def get_optional_user(
             
             if user_db:
                 return User(
+                    id=user_db.id,
                     username=user_db.email.split('@')[0] if user_db.email else token_data.username,
                     email=user_db.email,
                     tenant_id=token_data.tenant_id or "default-tenant",
@@ -323,6 +329,7 @@ async def get_optional_user(
             
             if user_db:
                 return User(
+                    id=user_db.id,
                     username="api_user",
                     email=user_db.email,
                     tenant_id="api-tenant",

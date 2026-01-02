@@ -24,7 +24,7 @@ except ImportError:
 from config.settings import settings
 
 # Load from environment or use defaults
-JWT_SECRET_KEY = getattr(settings, 'jwt_secret_key', secrets.token_urlsafe(32))
+JWT_SECRET_KEY = getattr(settings, 'jwt_secret_key', None) or settings.secret_key
 JWT_ALGORITHM = getattr(settings, 'algorithm', 'HS256')
 ACCESS_TOKEN_EXPIRE_MINUTES = getattr(settings, 'access_token_expire_minutes', 30)
 REFRESH_TOKEN_EXPIRE_DAYS = 7

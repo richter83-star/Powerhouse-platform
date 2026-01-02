@@ -27,7 +27,7 @@ spec:
         image: ghcr.io/richter83-star/powerhouse-platform/backend:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 8001
+        - containerPort: 8000
           name: http
         env:
         - name: DATABASE_URL
@@ -76,7 +76,7 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8001
+            port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
@@ -84,7 +84,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /health
-            port: 8001
+            port: 8000
           initialDelaySeconds: 10
           periodSeconds: 5
           timeoutSeconds: 3
@@ -102,7 +102,7 @@ spec:
   type: ClusterIP
   ports:
   - port: 80
-    targetPort: 8001
+    targetPort: 8000
     protocol: TCP
     name: http
   selector:

@@ -31,6 +31,10 @@ class Settings(BaseSettings):
         default="your-secret-key-change-in-production",
         description="Secret key for JWT encoding"
     )
+    jwt_secret_key: str = Field(
+        default="your-jwt-secret-key-change-in-production",
+        description="Secret key for JWT access/refresh tokens"
+    )
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     api_keys: list[str] = Field(
@@ -180,6 +184,10 @@ class Settings(BaseSettings):
     stripe_webhook_secret: Optional[str] = Field(
         default=None,
         description="Stripe webhook signing secret (whsec_...)"
+    )
+    marketplace_currency: str = Field(
+        default="usd",
+        description="Currency for marketplace payments"
     )
 
     # =====================================================================================

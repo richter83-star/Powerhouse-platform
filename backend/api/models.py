@@ -377,7 +377,7 @@ class TokenData(BaseModel):
 
 class User(BaseModel):
     """User model."""
-    
+    id: Optional[str] = None
     username: str
     email: Optional[str] = None
     tenant_id: str

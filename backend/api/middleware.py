@@ -9,8 +9,10 @@ from typing import Callable
 import time
 import json
 import logging
+import hashlib
 
 from core.security import verify_token, audit_logger, AuditEventType, AuditSeverity
+from config.settings import settings
 try:
     from core.security import rbac_manager
 except ImportError:
@@ -29,11 +31,20 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     EXEMPT_PATHS = [
         "/api/auth/login",
         "/api/auth/refresh",
+        "/api/auth/signup",
+        "/api/auth/verify",
+        "/api/auth/verify-email",
+        "/api/auth/reset-password-request",
+        "/api/auth/reset-password",
+        "/api/v1/auth/token",
         "/api/billing/webhook",  # Stripe webhook (has its own signature verification)
         "/docs",
         "/redoc",
         "/openapi.json",
-        "/health"
+        "/postman.json",
+        "/health",
+        "/ready",
+        "/live"
     ]
     
     async def dispatch(self, request: Request, call_next: Callable):
@@ -45,28 +56,44 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             return response
         
-        # Extract and validate token
+        # Extract and validate token or API key
         auth_header = request.headers.get("Authorization")
-        
-        if not auth_header or not auth_header.startswith("Bearer "):
+        api_key = request.headers.get("X-API-Key")
+
+        payload = None
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            payload = verify_token(token)
+            if not payload:
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "Invalid or expired token"}
+                )
+            # Add user context to request state
+            request.state.user_id = payload.get("sub")
+            request.state.tenant_id = payload.get("tenant_id")
+            request.state.roles = payload.get("roles", [])
+        elif api_key:
+            api_keys = getattr(settings, "api_keys", [])
+            if not api_keys:
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "API key authentication is not configured"}
+                )
+            if api_key not in api_keys:
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "Invalid API key"}
+                )
+            key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:12]
+            request.state.user_id = f"api_key:{key_hash}"
+            request.state.tenant_id = "api-key"
+            request.state.roles = []
+        else:
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={"detail": "Missing or invalid authorization header"}
             )
-        
-        token = auth_header.split(" ")[1]
-        payload = verify_token(token)
-        
-        if not payload:
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"detail": "Invalid or expired token"}
-            )
-        
-        # Add user context to request state
-        request.state.user_id = payload.get("sub")
-        request.state.tenant_id = payload.get("tenant_id")
-        request.state.roles = payload.get("roles", [])
         
         # Process request
         try:

@@ -594,7 +594,7 @@ class Seller(Base):
     __tablename__ = "sellers"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    user_id = Column(String(36), nullable=False, index=True)
     stripe_account_id = Column(String(255), nullable=True)
     display_name = Column(String(255), nullable=False)
     bio = Column(Text, nullable=True)
@@ -656,7 +656,7 @@ class MarketplacePurchase(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     listing_id = Column(Integer, ForeignKey("marketplace_listings.id"), nullable=False, index=True)
-    buyer_id = Column(Integer, nullable=False, index=True)
+    buyer_id = Column(String(36), nullable=False, index=True)
     seller_id = Column(Integer, ForeignKey("sellers.id"), nullable=False, index=True)
     amount = Column(Float, nullable=False)
     platform_fee = Column(Float, nullable=False)
@@ -685,7 +685,7 @@ class MarketplaceReview(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     listing_id = Column(Integer, ForeignKey("marketplace_listings.id"), nullable=False, index=True)
     purchase_id = Column(Integer, ForeignKey("marketplace_purchases.id"), nullable=False, index=True)
-    buyer_id = Column(Integer, nullable=False, index=True)
+    buyer_id = Column(String(36), nullable=False, index=True)
     rating = Column(Integer, nullable=False)
     review_text = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

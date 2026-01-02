@@ -175,8 +175,11 @@ async def lifespan(app: FastAPI):
     # Create database tables
     try:
         engine = get_engine()
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database tables created successfully")
+        if settings.environment != "production":
+            Base.metadata.create_all(bind=engine)
+            logger.info("Database tables created successfully")
+        else:
+            logger.info("Skipping automatic table creation in production")
         
         # Optimize database (create indexes, etc.)
         if settings.environment == "production":
@@ -331,13 +334,11 @@ except ImportError as e:
 # Security middleware (JWT validation, audit logging)
 try:
     from api.middleware import SecurityMiddleware, RateLimitMiddleware, UsageLimitMiddleware, SLATrackingMiddleware
-    # Note: SecurityMiddleware is commented out by default to not break existing functionality
-    # Uncomment when ready to enforce JWT authentication on all endpoints
-    # app.add_middleware(SecurityMiddleware)
+    app.add_middleware(SecurityMiddleware)
     app.add_middleware(RateLimitMiddleware, requests_per_minute=120)
     app.add_middleware(UsageLimitMiddleware)  # Enforce usage limits per tenant tier
     app.add_middleware(SLATrackingMiddleware)  # Track requests for SLA monitoring
-    logger.info("Security middleware loaded (JWT auth disabled by default)")
+    logger.info("Security middleware loaded (JWT auth enabled)")
 except ImportError as e:
     logger.warning(f"Could not load security middleware: {e}")
 
