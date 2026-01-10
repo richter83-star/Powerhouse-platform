@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Red Team Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>Red Team Dashboard</h1>
+    <div>
+        <p>Total Attacks: {{ metrics.total_attacks }}</p>
+        <p>Successful Attacks: {{ metrics.successful_attacks }}</p>
+        <p>Total Vulnerabilities: {{ metrics.total_vulnerabilities }}</p>
+    </div>
+    <canvas id="vulnerabilityChart" width="400" height="200"></canvas>
+    <script>
+        const ctx = document.getElementById('vulnerabilityChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['High', 'Medium', 'Low'],
+                datasets: [{
+                    label: 'Vulnerabilities by Severity',
+                    data: [{{ metrics.severity_counts.high }}, {{ metrics.severity_counts.medium }}, {{ metrics.severity_counts.low }}],
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.2)',
+                        'rgba(255, 205, 86, 0.2)',
+                        'rgba(75, 192, 192, 0.2)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(255, 205, 86, 1)',
+                        'rgba(75, 192, 192, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
