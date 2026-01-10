@@ -78,6 +78,8 @@ services:
       - LOG_LEVEL=INFO
       - LOG_FORMAT=json
       - ENABLE_FILE_LOGGING=True
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
       # Database connection (uses internal Docker network)
       - DB_HOST=postgres
       - DB_PORT=5432

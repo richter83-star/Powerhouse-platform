@@ -25,6 +25,10 @@ spec:
           value: "postgresql://$(DB_USER):$(DB_PASSWORD)@postgres-service:5432/$(DB_NAME)"
         - name: REDIS_URL
           value: "redis://:$(REDIS_PASSWORD)@redis-service:6379/0"
+        - name: LOG_FORMAT
+          value: "json"
+        - name: ENABLE_FILE_LOGGING
+          value: "false"
         envFrom:
         - configMapRef:
             name: powerhouse-config
@@ -39,7 +43,7 @@ spec:
             cpu: "2000m"
         livenessProbe:
           httpGet:
-            path: /health
+            path: /live
             port: 8000
           initialDelaySeconds: 60
           periodSeconds: 30
@@ -47,7 +51,7 @@ spec:
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /health
+            path: /ready
             port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10

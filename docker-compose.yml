@@ -61,6 +61,10 @@
       ENVIRONMENT: "production"
       DEBUG: ${DEBUG:-False}
       LOG_LEVEL: "INFO"
+      LOG_FORMAT: "${LOG_FORMAT:-json}"
+      ENABLE_FILE_LOGGING: "${ENABLE_FILE_LOGGING:-false}"
+      SENTRY_DSN: "${SENTRY_DSN:-}"
+      SENTRY_ENVIRONMENT: "${SENTRY_ENVIRONMENT:-production}"
       LLM_ALLOW_NO_KEY: ${LLM_ALLOW_NO_KEY:-false}
       EMAIL_PROVIDER: "smtp"
       SMTP_SERVER: "localhost"
