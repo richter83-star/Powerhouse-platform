@@ -23,8 +23,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 3. Copy Application
 COPY --chown=appuser:appuser . .
-RUN mkdir -p /app/data_io/uploads /app/data_io/outputs /app/data_io/templates /app/data_io/samples \
-    && chown -R appuser:appuser /app/data_io
+RUN mkdir -p /app/data_io/uploads /app/data_io/outputs /app/data_io/templates /app/data_io/samples /app/audit_logs \
+    && chown -R appuser:appuser /app/data_io /app/audit_logs
 USER appuser
 EXPOSE 8000
 
