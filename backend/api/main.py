@@ -68,7 +68,7 @@ except ImportError:
     HAS_OBSERVABILITY_ROUTES = False
 
 from database.session import get_engine, get_session
-from database.models import Base, Tenant
+from database.models import Tenant
 # Import new models to ensure they're registered with Base.metadata
 try:
     from core.services.email_queue import EmailQueue
@@ -172,14 +172,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not start audit logger: {e}")
     
-    # Create database tables
+    # Initialize database engine (migrations should be run separately)
     try:
         engine = get_engine()
-        if settings.environment != "production":
-            Base.metadata.create_all(bind=engine)
-            logger.info("Database tables created successfully")
-        else:
-            logger.info("Skipping automatic table creation in production")
+        logger.info("Database engine initialized")
         
         # Optimize database (create indexes, etc.)
         if settings.environment == "production":
@@ -197,7 +193,7 @@ async def lifespan(app: FastAPI):
             else:
                 logger.info("Skipping database optimization; startup lock already held")
     except Exception as e:
-        logger.error(f"Failed to create database tables: {e}")
+        logger.error(f"Failed to initialize database engine: {e}")
     # Ensure a default tenant exists for single-tenant flows
     try:
         db = get_session()

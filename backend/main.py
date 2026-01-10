@@ -16,10 +16,10 @@ logger = get_logger(__name__)
 
 
 def initialize_database():
-    """Initialize database with tables."""
-    logger.info("Initializing database...")
+    """Initialize database by applying Alembic migrations."""
+    logger.info("Applying database migrations...")
     init_db()
-    logger.info("Database initialized successfully")
+    logger.info("Database migrations complete")
 
 
 def create_demo_tenant_and_project() -> tuple[str, str]:

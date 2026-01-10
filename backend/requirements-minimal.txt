@@ -5,6 +5,7 @@
 # Core FastAPI dependencies
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
+alembic==1.12.1
 pydantic>=2.10.0
 pydantic-settings==2.1.0
 

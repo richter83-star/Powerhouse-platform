@@ -4,6 +4,7 @@ Database session management and initialization.
 
 from typing import Generator, Optional
 import os
+from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
@@ -158,9 +159,26 @@ def init_db(drop_all: bool = False) -> None:
         logger.warning("Dropping all database tables!")
         Base.metadata.drop_all(bind=engine)
     
-    logger.info("Creating database tables...")
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database initialized successfully")
+    db_url = str(engine.url) if engine else ""
+    if db_url.startswith("sqlite"):
+        logger.info("Creating database tables for SQLite...")
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database initialized successfully")
+        return
+
+    logger.info("Running Alembic migrations...")
+    try:
+        from alembic import command
+        from alembic.config import Config
+
+        base_dir = Path(__file__).resolve().parents[1]
+        alembic_cfg = Config(str(base_dir / "alembic.ini"))
+        alembic_cfg.set_main_option("script_location", str(base_dir / "alembic"))
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Alembic migrations applied successfully")
+    except Exception as exc:
+        logger.error("Alembic migration failed: %s", exc)
+        raise
 
 
 def close_db() -> None:

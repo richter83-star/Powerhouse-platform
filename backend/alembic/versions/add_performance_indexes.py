@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'add_performance_indexes'
-down_revision = None  # Update this to match your latest migration
+revision = "add_performance_indexes"
+down_revision = "base_schema"
 branch_labels = None
 depends_on = None
 

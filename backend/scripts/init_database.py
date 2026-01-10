@@ -1,8 +1,8 @@
 """
 Database Initialization Script
 
-Initializes the database with all required tables.
-Run this script before first deployment.
+Runs Alembic migrations to create or update the database schema.
+Use this instead of creating tables directly.
 """
 
 import sys
@@ -13,7 +13,6 @@ backend_path = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_path))
 
 from database.session import init_db, get_engine
-from database.models import Base
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -23,7 +22,7 @@ logger = logging.getLogger(__name__)
 def main():
     """Initialize database"""
     print("="*60)
-    print("DATABASE INITIALIZATION")
+    print("DATABASE MIGRATIONS")
     print("="*60)
     print()
     
@@ -32,16 +31,16 @@ def main():
         engine = get_engine()
         print("✅ Database connection established")
         
-        # Initialize database (create all tables)
-        print("Creating database tables...")
+        # Run Alembic migrations
+        print("Running Alembic migrations (upgrade head)...")
         init_db(drop_all=False)
         
         print()
         print("="*60)
-        print("✅ DATABASE INITIALIZED SUCCESSFULLY")
+        print("✅ DATABASE MIGRATIONS COMPLETE")
         print("="*60)
         print()
-        print("All tables have been created.")
+        print("Schema is up to date.")
         print("You can now start the application.")
         print()
         
