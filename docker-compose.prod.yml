@@ -80,6 +80,7 @@ services:
       - ENABLE_FILE_LOGGING=True
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
+      - CHECKPOINTS_DIR=/tmp/checkpoints
       # Database connection (uses internal Docker network)
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -92,12 +93,12 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     # Production: Use multiple workers
     command: >
-      python -m uvicorn api.main:app
+      sh -c "mkdir -p /tmp/checkpoints; python -m uvicorn api.main:app
       --host 0.0.0.0
       --port 8000
       --workers 4
       --access-log
-      --log-level info
+      --log-level info"
     deploy:
       resources:
         limits:

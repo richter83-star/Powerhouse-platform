@@ -65,6 +65,7 @@
       ENABLE_FILE_LOGGING: "${ENABLE_FILE_LOGGING:-false}"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       SENTRY_ENVIRONMENT: "${SENTRY_ENVIRONMENT:-production}"
+      CHECKPOINTS_DIR: "/tmp/checkpoints"
       LLM_ALLOW_NO_KEY: ${LLM_ALLOW_NO_KEY:-false}
       EMAIL_PROVIDER: "smtp"
       SMTP_SERVER: "localhost"
@@ -81,7 +82,7 @@
     restart: unless-stopped
     # STANDARD START (No pip install here, it's now in the image)
     command: >
-      sh -c "rm -f .env || true; python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 4"
+      sh -c "rm -f /app/.env 2>/dev/null || true; mkdir -p /tmp/checkpoints; python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 4"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

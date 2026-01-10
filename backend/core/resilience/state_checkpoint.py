@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, List
 from dataclasses import dataclass, asdict
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,8 @@ class StateCheckpointManager:
     """
     
     def __init__(self, checkpoint_dir: str = "./checkpoints", compression: bool = True):
-        self.checkpoint_dir = Path(checkpoint_dir)
+        env_dir = os.getenv("CHECKPOINTS_DIR")
+        self.checkpoint_dir = Path(env_dir or checkpoint_dir).resolve()
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.compression = compression
         self.metadata_store: Dict[str, CheckpointMetadata] = {}

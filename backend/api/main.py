@@ -172,10 +172,23 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not start audit logger: {e}")
     
-    # Initialize database engine (migrations should be run separately)
+    # Initialize database engine and run migrations before tenant setup
     try:
         engine = get_engine()
         logger.info("Database engine initialized")
+
+        # Run migrations before any tenant logic
+        try:
+            from alembic import command
+            from alembic.config import Config
+            base_dir = Path(__file__).resolve().parents[1]
+            alembic_cfg = Config(str(base_dir / "alembic.ini"))
+            alembic_cfg.set_main_option("script_location", str(base_dir / "alembic"))
+            command.upgrade(alembic_cfg, "head")
+            logger.info("Alembic migrations applied on startup")
+        except Exception as e:
+            logger.error(f"Alembic migrations failed: {e}")
+            raise
         
         # Optimize database (create indexes, etc.)
         if settings.environment == "production":
