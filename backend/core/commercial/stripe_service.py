@@ -247,8 +247,10 @@ class StripeService:
                         customer=subscription.customer,
                         subscription=subscription_id
                     )
-                except:
-                    pass
+                except stripe.error.StripeError as exc:
+                    logger.warning("Stripe error fetching upcoming invoice: %s", exc)
+                except Exception as exc:
+                    logger.warning("Unexpected error fetching upcoming invoice: %s", exc)
             
             result = self._format_subscription(updated_subscription)
             if upcoming_invoice:

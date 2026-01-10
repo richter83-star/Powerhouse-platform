@@ -245,8 +245,8 @@ class JWTAuthManager:
                 else:
                     # Fallback to in-memory set
                     self.revoked_tokens.add(jti)
-        except jwt.JWTError:
-            pass
+        except jwt.JWTError as exc:
+            logger.debug("Failed to decode token for revocation: %s", exc)
     
     def revoke_all_user_tokens(self, user_id: str, tenant_id: Optional[str] = None):
         """

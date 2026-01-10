@@ -4,6 +4,7 @@ Authentication and authorization utilities.
 
 from datetime import datetime, timedelta
 from typing import Optional, Union
+import logging
 from fastapi import Depends, HTTPException, status, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyHeader
 from jose import JWTError, jwt
@@ -11,6 +12,9 @@ from passlib.context import CryptContext
 
 from config.settings import settings
 from api.models import TokenData, User
+
+# Logger
+logger = logging.getLogger(__name__)
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -337,7 +341,7 @@ async def get_optional_user(
                 )
             # If no API user found, return None (will be handled by caller)
             return None
-    except:
-        pass
+    except Exception as exc:
+        logger.warning("Optional authentication failed: %s", exc)
     
     return None
