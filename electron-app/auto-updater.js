@@ -121,8 +121,14 @@ function isNewerVersion(newVersion, currentVersion) {
  * Sanitize version string for safe use in file paths
  */
 function sanitizeVersion(version) {
-  const v = String(version);
-  // Allow only alphanumerics, dot, underscore and hyphen
+  const v = String(version).trim();
+  // Enforce a strict semantic-version-like format to avoid unexpected values
+  // Examples: "1.0.0", "2.3", "1.2.3-beta.1", "1.2.3+build.5"
+  const semverLikePattern = /^[0-9]+(?:\.[0-9]+){0,2}(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+  if (!semverLikePattern.test(v)) {
+    throw new Error('Invalid update version string format');
+  }
+  // Allow only alphanumerics, dot, underscore and hyphen in the final value
   const sanitized = v.replace(/[^0-9A-Za-z._-]/g, '');
   if (!sanitized) {
     throw new Error('Invalid update version string');
