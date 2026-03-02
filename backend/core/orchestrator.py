@@ -93,6 +93,10 @@ class Orchestrator:
         meta_memory = next((a for a in self.agents if a.__class__.__name__ == "MetaMemoryAgent"), None)
         if meta_memory:
             context["state"]["meta_memory"] = meta_memory
+            # Inject relevant past experiences so every agent can benefit from prior runs
+            lessons = meta_memory.get_lessons_for(task)
+            if lessons:
+                context["relevant_memories"] = lessons
 
         # Execute agents sequentially
         for agent in self.agents:
@@ -149,6 +153,15 @@ class Orchestrator:
         if meta:
             meta.evolve(self.agents, context)
 
+        # Feed outcome into the learning loop for compounding improvement
+        try:
+            from core.learning_loop import get_learning_loop
+            loop = get_learning_loop()
+            if loop:
+                loop.record(context)
+        except Exception:
+            pass
+
         return context
 
     def run_parallel(self, task: str, config: Dict[str, Any] | None = None) -> Dict[str, Any]:
@@ -183,6 +196,9 @@ class Orchestrator:
         meta_memory = next((a for a in self.agents if a.__class__.__name__ == "MetaMemoryAgent"), None)
         if meta_memory:
             context["state"]["meta_memory"] = meta_memory
+            lessons = meta_memory.get_lessons_for(task)
+            if lessons:
+                context["relevant_memories"] = lessons
 
         # Group agents by execution constraints
         sequential_agents = []
@@ -284,6 +300,15 @@ class Orchestrator:
         meta = next((a for a in self.agents if a.__class__.__name__ == "MetaEvolverAgent"), None)
         if meta:
             meta.evolve(self.agents, context)
+
+        # Feed outcome into the learning loop
+        try:
+            from core.learning_loop import get_learning_loop
+            loop = get_learning_loop()
+            if loop:
+                loop.record(context)
+        except Exception:
+            pass
 
         return context
 

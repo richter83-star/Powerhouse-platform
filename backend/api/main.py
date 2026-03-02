@@ -243,7 +243,29 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Failed to start model updater: {e}")
     else:
         logger.info("Kafka disabled, online learning not started")
-    
+
+    # Initialize the always-on LearningLoop (no Kafka required).
+    # This closes the feedback cycle: every orchestrator run feeds scores back
+    # into MetaMemoryAgent, DynamicConfigManager, and MetaEvolverAgent so the
+    # system compounds its improvement with each execution.
+    try:
+        from agents.memory_agent import MetaMemoryAgent
+        from agents.meta_evolver import MetaEvolverAgent
+        from core.dynamic_config_manager import get_config_manager
+        from core.learning_loop import init_learning_loop
+
+        _meta_memory = MetaMemoryAgent()
+        _meta_evolver = MetaEvolverAgent(memory_agent=_meta_memory)
+        _config_manager = get_config_manager()
+        init_learning_loop(
+            meta_memory=_meta_memory,
+            config_manager=_config_manager,
+            meta_evolver=_meta_evolver,
+        )
+        logger.info("LearningLoop initialized — agents will compound improvement across runs")
+    except Exception as e:
+        logger.warning(f"Could not start LearningLoop (non-critical): {e}")
+
     yield
     
     # Shutdown

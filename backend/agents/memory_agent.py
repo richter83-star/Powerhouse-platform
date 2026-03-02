@@ -135,6 +135,28 @@ class MetaMemoryAgent(BaseAgent):
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:top_k]
 
+    def get_lessons_for(self, task: str, top_k: int = 3) -> str:
+        """
+        Return a compact string of relevant past lessons for injection into agent context.
+
+        Called by the orchestrator before each run so every agent can benefit
+        from prior runs without any per-agent wiring.  Returns an empty string
+        when there is nothing relevant yet (first run, no memories).
+        """
+        memories = self.retrieve(task, top_k=top_k, min_score=0.35)
+        if not memories:
+            return ""
+        parts = []
+        for m in memories:
+            tags = m.get("tags", [])
+            # Only surface reflections, outcomes, and high-value agent outputs
+            if any(t in tags for t in ("reflection", "outcome", "agent_output", "agent_mutation")):
+                snippet = m["content"][:200].replace("\n", " ")
+                parts.append(f"[score={m.get('score', 0.0):.2f}] {snippet}")
+        if not parts:
+            return ""
+        return "Relevant past experiences:\n" + "\n".join(parts)
+
     def get_agent_performance(self) -> Dict[str, float]:
         scores: Dict[str, List[float]] = {}
         for memory in self.memory_store:

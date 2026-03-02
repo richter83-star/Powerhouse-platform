@@ -379,20 +379,41 @@ class AgentLearningCoordinator:
         """Apply learnings to system configuration."""
         for insight in insights:
             if insight['type'] == 'strategy_optimization':
-                # High-performing strategies get reinforced
                 if insight['success_rate'] > 0.8:
                     logger.info(f"   📝 Learned: {insight['recommendation']}")
                     self.learning_stats['config_adjustments'] += 1
-                    
-                    # Could adjust config here if needed
+
                     if self.config_manager:
-                        # Example: boost successful strategies
-                        pass
-            
+                        # High success rate — scale up batch to exploit this strategy
+                        current_batch = self.config_manager.get_parameter("batch_size") or 10
+                        self.config_manager.set_parameter(
+                            "batch_size",
+                            min(50, current_batch + 2),
+                            reason=f"strategy '{insight['strategy']}' "
+                                   f"success_rate={insight['success_rate']:.2f}",
+                        )
+                        # Fast strategy — tighten timeout to match observed latency
+                        if insight.get('avg_latency', 9999) < 500:
+                            self.config_manager.set_parameter(
+                                "timeout_seconds",
+                                max(30, int(insight['avg_latency'] / 1000 * 3) + 15),
+                                reason=f"strategy '{insight['strategy']}' "
+                                       f"avg_latency={insight['avg_latency']:.0f}ms",
+                            )
+
             elif insight['type'] == 'weakness_identified':
-                # Identified areas need attention
                 logger.warning(f"   ⚠️ Weakness: {insight['recommendation']}")
                 self.learning_stats['goal_adjustments'] += 1
+
+                if self.config_manager and insight['success_rate'] < 0.4:
+                    # Very poor area — give more retries before giving up
+                    current_retries = self.config_manager.get_parameter("max_retries") or 3
+                    self.config_manager.set_parameter(
+                        "max_retries",
+                        min(5, current_retries + 1),
+                        reason=f"weakness in '{insight['category']}' "
+                               f"success_rate={insight['success_rate']:.2f}",
+                    )
     
     def _measure_performance(self, results: List[Dict[str, Any]]) -> Dict[str, float]:
         """Measure current performance metrics."""
