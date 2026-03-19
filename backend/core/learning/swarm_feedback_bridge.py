@@ -12,8 +12,10 @@ Signal flow:
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.learning.reinforcement_learning import (
@@ -238,6 +240,118 @@ class SwarmFeedbackBridge:
         else:
             stats["rl"] = None
         return stats
+
+    # ------------------------------------------------------------------
+    # Persistence: save / load RL state across restarts
+    # ------------------------------------------------------------------
+
+    def save(self, path: str) -> None:
+        """
+        Persist the RL optimizer state and bridge counters to *path*.
+
+        Creates parent directories automatically.  Uses ``torch.save`` for
+        network weights (when PyTorch is available) and pickle for the rest.
+
+        Args:
+            path: File path (e.g. ``"data/rl_bridge.pkl"``).
+        """
+        if self.rl is None:
+            logger.warning("save() called but RL optimizer is None – nothing saved")
+            return
+        try:
+            dest = Path(path)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+
+            checkpoint: Dict[str, Any] = {
+                "ingestion_count": self._ingestion_count,
+                "history_length": len(self._history),
+                "rl_algorithm": self.rl.algorithm,
+                "rl_total_updates": self.rl.total_updates,
+                "rl_epsilon": self.rl.epsilon,
+                "rl_episode_rewards": list(self.rl.episode_rewards),
+            }
+
+            if TORCH_AVAILABLE:
+                import torch
+                if self.rl.algorithm == "dqn":
+                    checkpoint["q_network_state"]        = self.rl.q_network.state_dict()
+                    checkpoint["target_q_network_state"] = self.rl.target_q_network.state_dict()
+                    checkpoint["optimizer_state"]        = self.rl.optimizer.state_dict()
+                    checkpoint["replay_buffer"]          = list(self.rl.replay_buffer)
+                else:
+                    checkpoint["policy_network_state"] = self.rl.policy_network.state_dict()
+                    checkpoint["optimizer_state"]      = self.rl.optimizer.state_dict()
+                    checkpoint["trajectory_buffer"]    = self.rl.trajectory_buffer
+                torch.save(checkpoint, str(dest))
+            else:
+                with open(dest, "wb") as fh:
+                    pickle.dump(checkpoint, fh)
+
+            logger.info("RL bridge saved to %s (updates=%d)", dest,
+                        self.rl.total_updates)
+        except Exception as exc:
+            logger.error("Failed to save RL bridge: %s", exc, exc_info=True)
+
+    def load(self, path: str) -> None:
+        """
+        Restore RL optimizer state from a previously saved checkpoint.
+
+        Silently returns if the file does not exist (first-run scenario).
+
+        Args:
+            path: File path written by :meth:`save`.
+        """
+        if self.rl is None:
+            logger.warning("load() called but RL optimizer is None – nothing loaded")
+            return
+        src = Path(path)
+        if not src.exists():
+            logger.info("RL checkpoint not found at %s – starting fresh", src)
+            return
+        try:
+            if TORCH_AVAILABLE:
+                import torch
+                checkpoint = torch.load(str(src), map_location="cpu")
+            else:
+                with open(src, "rb") as fh:
+                    checkpoint = pickle.load(fh)
+
+            self._ingestion_count = checkpoint.get("ingestion_count", 0)
+            self.rl.total_updates = checkpoint.get("rl_total_updates", 0)
+            self.rl.epsilon       = checkpoint.get("rl_epsilon", self.rl.epsilon)
+
+            from collections import deque
+            rewards = checkpoint.get("rl_episode_rewards", [])
+            self.rl.episode_rewards = deque(rewards, maxlen=100)
+
+            if TORCH_AVAILABLE:
+                import torch
+                if self.rl.algorithm == "dqn":
+                    if "q_network_state" in checkpoint:
+                        self.rl.q_network.load_state_dict(checkpoint["q_network_state"])
+                        self.rl.target_q_network.load_state_dict(
+                            checkpoint["target_q_network_state"]
+                        )
+                        self.rl.optimizer.load_state_dict(checkpoint["optimizer_state"])
+                    if "replay_buffer" in checkpoint:
+                        self.rl.replay_buffer = deque(
+                            checkpoint["replay_buffer"],
+                            maxlen=self.rl.replay_buffer.maxlen,
+                        )
+                else:
+                    if "policy_network_state" in checkpoint:
+                        self.rl.policy_network.load_state_dict(
+                            checkpoint["policy_network_state"]
+                        )
+                        self.rl.optimizer.load_state_dict(checkpoint["optimizer_state"])
+                    if "trajectory_buffer" in checkpoint:
+                        self.rl.trajectory_buffer = checkpoint["trajectory_buffer"]
+
+            logger.info("RL bridge loaded from %s (updates=%d, ingestions=%d)",
+                        src, self.rl.total_updates, self._ingestion_count)
+        except Exception as exc:
+            logger.error("Failed to load RL bridge from %s: %s", src, exc,
+                         exc_info=True)
 
     # ------------------------------------------------------------------
     # Private helpers

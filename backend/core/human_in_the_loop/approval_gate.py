@@ -26,12 +26,14 @@ Audit trail:
 
 from __future__ import annotations
 
+import json
 import threading
 import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from utils.logging import get_logger
@@ -148,6 +150,7 @@ class ApprovalGate:
         auto_approve_on_timeout: bool = True,
         trusted_agents: Optional[set] = None,
         approval_handler: Optional[ApprovalHandler] = None,
+        audit_log_path: Optional[str] = None,
     ) -> None:
         """
         Args:
@@ -160,12 +163,19 @@ class ApprovalGate:
                 request in gate mode (e.g. webhook POST, Slack message).
                 Return True to approve immediately, False to reject, None to
                 rely on the timeout / poll loop.
+            audit_log_path: Optional path to a JSONL file for persistent audit
+                logging.  When set, every resolved request is appended to the
+                file and existing records are loaded at construction time so
+                history survives server restarts.
         """
         self.mode = HITLMode(mode) if not isinstance(mode, HITLMode) else mode
         self.timeout_seconds = timeout_seconds
         self.auto_approve_on_timeout = auto_approve_on_timeout
         self.trusted_agents: set = trusted_agents or set()
         self.approval_handler = approval_handler
+        self._audit_log_path: Optional[Path] = (
+            Path(audit_log_path) if audit_log_path else None
+        )
 
         # Request store: request_id → ApprovalRequest
         self._pending: Dict[str, ApprovalRequest] = {}
@@ -174,6 +184,10 @@ class ApprovalGate:
 
         # Audit trail (all requests ever created)
         self.audit_trail: List[ApprovalRequest] = []
+
+        # Load persisted records if log file exists
+        if self._audit_log_path:
+            self._load_audit_log()
 
         logger.info(
             "ApprovalGate initialised: mode=%s, timeout=%.1fs, "
@@ -394,15 +408,95 @@ class ApprovalGate:
         resolver: str = "system",
         rejection_reason: Optional[str] = None,
     ) -> None:
-        """Update request status and remove from pending dict."""
+        """Update request status, remove from pending dict, and persist."""
         req.status = status
         req.resolved_at = datetime.utcnow()
         req.resolver = resolver
         if rejection_reason:
             req.rejection_reason = rejection_reason
         self._pending.pop(req.request_id, None)
-        # Clean up event
         self._events.pop(req.request_id, None)
+        # Append to on-disk audit log (non-blocking best-effort)
+        self._append_audit_log(req)
+
+    # ------------------------------------------------------------------
+    # Persistence helpers
+    # ------------------------------------------------------------------
+
+    def _append_audit_log(self, req: ApprovalRequest) -> None:
+        """Append a single resolved request to the JSONL audit log."""
+        if not self._audit_log_path:
+            return
+        try:
+            self._audit_log_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._audit_log_path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(req.to_dict()) + "\n")
+        except Exception as exc:
+            logger.warning("Failed to append audit log: %s", exc)
+
+    def _load_audit_log(self) -> None:
+        """Load persisted audit records from the JSONL file into audit_trail."""
+        if not self._audit_log_path or not self._audit_log_path.exists():
+            return
+        loaded = 0
+        try:
+            with self._audit_log_path.open("r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                        req = ApprovalRequest(
+                            request_id=record["request_id"],
+                            task=record["task"],
+                            reasoning_summary=record.get("reasoning_summary", ""),
+                            agent_name=record.get("agent_name", "unknown"),
+                            agent_confidence=record.get("agent_confidence", 1.0),
+                            estimated_impact=record.get("estimated_impact", "medium"),
+                            causal_context=record.get("causal_context"),
+                            run_id=record.get("run_id"),
+                            requester=record.get("requester", "orchestrator"),
+                            created_at=datetime.fromisoformat(
+                                record.get("created_at", datetime.utcnow().isoformat())
+                            ),
+                            status=ApprovalStatus(record.get("status", "approved")),
+                            resolved_at=(
+                                datetime.fromisoformat(record["resolved_at"])
+                                if record.get("resolved_at") else None
+                            ),
+                            resolver=record.get("resolver"),
+                            rejection_reason=record.get("rejection_reason"),
+                        )
+                        self.audit_trail.append(req)
+                        loaded += 1
+                    except Exception as exc:
+                        logger.warning("Skipping malformed audit record: %s", exc)
+        except Exception as exc:
+            logger.warning("Failed to load audit log from %s: %s",
+                           self._audit_log_path, exc)
+        if loaded:
+            logger.info("Loaded %d HITL audit records from %s",
+                        loaded, self._audit_log_path)
+
+    def flush_audit_log(self) -> None:
+        """
+        Rewrite the entire in-memory audit trail to disk.
+
+        Useful at shutdown to ensure all records are persisted, including any
+        that were created but not yet resolved (e.g. still-pending requests).
+        """
+        if not self._audit_log_path:
+            return
+        try:
+            self._audit_log_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._audit_log_path.open("w", encoding="utf-8") as fh:
+                for req in self.audit_trail:
+                    fh.write(json.dumps(req.to_dict()) + "\n")
+            logger.info("Flushed %d HITL audit records to %s",
+                        len(self.audit_trail), self._audit_log_path)
+        except Exception as exc:
+            logger.error("Failed to flush audit log: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -415,11 +509,17 @@ def build_approval_gate(
     auto_approve_on_timeout: bool = True,
     trusted_agents: Optional[set] = None,
     approval_handler: Optional[ApprovalHandler] = None,
+    audit_log_path: Optional[str] = None,
 ) -> ApprovalGate:
     """
     Factory that reads sensible defaults from settings.
 
     Prefer instantiating ``ApprovalGate`` directly for full control.
+
+    Args:
+        audit_log_path: Path to a JSONL file for persistent audit logging.
+            When set, records are loaded on startup and appended on every
+            resolution so history survives server restarts.
     """
     return ApprovalGate(
         mode=HITLMode(mode),
@@ -427,4 +527,5 @@ def build_approval_gate(
         auto_approve_on_timeout=auto_approve_on_timeout,
         trusted_agents=trusted_agents,
         approval_handler=approval_handler,
+        audit_log_path=audit_log_path,
     )

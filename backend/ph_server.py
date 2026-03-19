@@ -15,8 +15,10 @@ Integration layer wires four architectural bridges into the endpoints:
 """
 
 import json
+import os
 import time
 import uuid
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -47,10 +49,31 @@ from core.swarm.swarm_orchestrator import SwarmOrchestrator
 
 settings = get_settings()
 
+# ---------------------------------------------------------------------------
+# Persistence paths (override via env vars)
+# ---------------------------------------------------------------------------
+_RL_CHECKPOINT_PATH  = os.environ.get("PH_RL_CHECKPOINT",  "data/rl_bridge.pt")
+_HITL_AUDIT_LOG_PATH = os.environ.get("PH_HITL_AUDIT_LOG", "data/hitl_audit.jsonl")
+
+
+# ---------------------------------------------------------------------------
+# Lifespan: load persisted state on startup, save on shutdown
+# ---------------------------------------------------------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup ---
+    _swarm_bridge.load(_RL_CHECKPOINT_PATH)
+    yield
+    # --- Shutdown ---
+    _swarm_bridge.save(_RL_CHECKPOINT_PATH)
+    _approval_gate.flush_audit_log()
+
+
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="Powerhouse Multi-Agent Orchestrator API",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -74,11 +97,15 @@ _orchestrator = Orchestrator(
 _swarm_bridge = SwarmFeedbackBridge()
 
 # --- HITL approval gate (reads mode/timeout from settings) ---
+# audit_log_path set here so records are appended on every resolve and loaded
+# at construction.  The lifespan handler calls flush_audit_log() on shutdown
+# to capture any in-flight (pending) records as well.
 _approval_gate = build_approval_gate(
     mode=settings.hitl_mode,
     timeout_seconds=settings.hitl_timeout_seconds,
     auto_approve_on_timeout=settings.hitl_auto_approve_on_timeout,
     trusted_agents=set(settings.hitl_trusted_agents),
+    audit_log_path=_HITL_AUDIT_LOG_PATH,
 )
 
 # --- Causal agent router (no CausalReasoner at server level; callers supply
