@@ -65,18 +65,60 @@ class Orchestrator:
         else:
             return self.run_sequential(task, config)
 
+    def _maybe_decompose_task(self, task: str, context: Dict[str, Any]) -> str:
+        """
+        Optionally decompose a complex task using HierarchicalTaskDecomposer.
+
+        Returns the (possibly annotated) task string.  Decomposition is skipped
+        when:
+        - ``AdvancedFeaturesConfig.ENABLE_HIERARCHICAL_DECOMPOSITION`` is False
+        - The task is short / simple (complexity heuristic < 0.6)
+        - The decomposer raises any exception (gracefully ignored)
+        """
+        try:
+            from config.advanced_features_config import advanced_features_config as _afc
+            if not _afc.ENABLE_HIERARCHICAL_DECOMPOSITION:
+                return task
+        except Exception:
+            return task
+
+        # Simple complexity estimate: word count + multi-step indicators
+        words = task.split()
+        step_words = ['and', 'then', 'also', 'after', 'before', 'while', 'finally']
+        step_count = sum(1 for w in step_words if w.lower() in task.lower())
+        complexity = min(1.0, len(words) / 50.0 + step_count * 0.1)
+        if complexity < 0.6:
+            return task
+
+        try:
+            from core.planning.hierarchical_decomposer import TaskDecomposer
+            decomposer = TaskDecomposer()
+            dag = decomposer.decompose(task)
+            subtasks = [t.description for t in dag.tasks.values() if t.depth > 0]
+            if subtasks:
+                context['subtasks'] = subtasks
+                logger.info(
+                    "Hierarchical decomposition produced %d subtasks", len(subtasks)
+                )
+                return f"{task} [Subtasks: {', '.join(subtasks[:4])}]"
+        except Exception as exc:
+            logger.debug("Hierarchical decomposition skipped: %s", exc)
+        return task
+
     def run_sequential(self, task: str, config: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """
         Run agents sequentially (original behavior).
-        
+
         Args:
             task: Task description
             config: Optional configuration
-            
+
         Returns:
             Execution results
         """
         context = {"task": task, "outputs": [], "state": {}}
+        task = self._maybe_decompose_task(task, context)
+        context["task"] = task
         config = config or {}
         
         # Pre-flight check with Governor
@@ -411,8 +453,10 @@ class Orchestrator:
             Execution results
         """
         context = {"task": task, "outputs": [], "state": {}}
+        task = self._maybe_decompose_task(task, context)
+        context["task"] = task
         config = config or {}
-        
+
         # Pre-flight check
         gov = next((a for a in self.agents if a.__class__.__name__ == "GovernorAgent"), None)
         if gov:

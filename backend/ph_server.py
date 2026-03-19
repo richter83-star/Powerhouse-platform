@@ -63,6 +63,22 @@ _HITL_AUDIT_LOG_PATH = os.environ.get("PH_HITL_AUDIT_LOG", "data/hitl_audit.json
 async def lifespan(app: FastAPI):
     # --- Startup ---
     _swarm_bridge.load(_RL_CHECKPOINT_PATH)
+
+    # Log which advanced features are active
+    try:
+        from config.advanced_features_config import advanced_features_config as _afc
+        enabled = [
+            name
+            for name, val in _afc.model_dump().items()
+            if name.startswith("ENABLE_") and val is True
+        ]
+        logger.info(
+            "Advanced features enabled at startup: %s",
+            ", ".join(enabled) if enabled else "none",
+        )
+    except Exception as _exc:
+        logger.warning("Could not read advanced_features_config: %s", _exc)
+
     yield
     # --- Shutdown ---
     _swarm_bridge.save(_RL_CHECKPOINT_PATH)
