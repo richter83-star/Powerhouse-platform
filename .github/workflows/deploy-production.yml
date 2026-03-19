@@ -58,7 +58,7 @@ jobs:
       with:
         context: ./backend
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ steps.meta.outputs.tags }}
+        tags: ${{ steps.meta.outputs.tags }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
@@ -67,7 +67,7 @@ jobs:
       with:
         context: ./frontend/app
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ steps.meta.outputs.tags }}
+        tags: ${{ steps.meta.outputs.tags }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
@@ -152,4 +152,3 @@ jobs:
         else
           echo "❌ Deployment failed"
         fi
-
