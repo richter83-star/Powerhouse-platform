@@ -41,28 +41,42 @@ class ModelCompressor:
     """
     
     def __init__(self, config: Optional[CompressionConfig] = None):
-        """Initialize model compressor."""
-        if not TORCH_AVAILABLE:
-            raise ImportError("PyTorch required for model compression")
-        
-        self.config = config or CompressionConfig()
+        """Initialize model compressor.
+
+        When PyTorch is unavailable the compressor runs in *no-op mode*:
+        ``compress()`` returns the model unchanged with a diagnostic stat dict.
+        """
         self.logger = get_logger(__name__)
+        if not TORCH_AVAILABLE:
+            logger.warning(
+                "PyTorch unavailable – ModelCompressor running in no-op mode. "
+                "compress() will return the model unchanged."
+            )
+            self._noop = True
+            self.config = config or CompressionConfig()
+            return
+        self._noop = False
+        self.config = config or CompressionConfig()
     
     def compress(
         self,
-        model: nn.Module,
+        model: Any,
         method: Optional[str] = None
-    ) -> Tuple[nn.Module, Dict[str, Any]]:
+    ) -> Tuple[Any, Dict[str, Any]]:
         """
         Compress a model.
-        
+
         Args:
             model: Model to compress
             method: Compression method (uses config if None)
-            
+
         Returns:
-            (compressed_model, compression_stats) tuple
+            (compressed_model, compression_stats) tuple.
+            In no-op mode returns (model, {"noop": True}).
         """
+        if self._noop:
+            logger.warning("ModelCompressor no-op: returning model unchanged")
+            return model, {"noop": True, "reason": "PyTorch unavailable"}
         method = method or self.config.compression_method
         
         if method == "pruning":

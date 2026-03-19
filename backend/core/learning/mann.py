@@ -154,10 +154,13 @@ else:
 class MANNWrapper:
     """
     Wrapper for MANN that manages memory lifecycle.
-    
+
     Provides high-level interface for MANN usage.
+    When PyTorch is unavailable the wrapper initialises in *no-op mode*:
+    all methods return zero-filled arrays / empty dicts so callers do not
+    need to guard every call site.
     """
-    
+
     def __init__(
         self,
         model: MANNModel,
@@ -165,34 +168,44 @@ class MANNWrapper:
     ):
         """
         Initialize MANN wrapper.
-        
+
         Args:
             model: MANN model
             memory: Optional memory bank (creates new if None)
         """
+        self.logger = get_logger(__name__)
+
         if not TORCH_AVAILABLE:
-            raise ImportError("PyTorch required for MANN")
-        
+            logger.warning(
+                "PyTorch unavailable – MANNWrapper running in no-op mode. "
+                "predict() will return zero arrays."
+            )
+            self._noop = True
+            self.model = model
+            self.memory = memory
+            return
+
+        self._noop = False
         self.model = model
         self.memory = memory or ExternalMemoryBank(
             memory_size=model.memory_size,
             key_dim=model.memory_key_dim,
             value_dim=model.memory_value_dim
         )
-        self.logger = get_logger(__name__)
     
     def predict(self, input_state: np.ndarray) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Make prediction with memory operations.
-        
+
         Args:
             input_state: Input state [input_dim] or [batch_size, input_dim]
-            
+
         Returns:
-            (prediction, metadata) tuple
+            (prediction, metadata) tuple.  Returns zeros when in no-op mode.
         """
-        if not TORCH_AVAILABLE:
-            raise ImportError("PyTorch required")
+        if self._noop:
+            out_shape = input_state.shape[:-1] if input_state.ndim > 1 else ()
+            return np.zeros(out_shape or (1,)), {"noop": True, "reason": "PyTorch unavailable"}
         
         # Convert to tensor
         if input_state.ndim == 1:
