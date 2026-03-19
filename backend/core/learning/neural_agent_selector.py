@@ -219,17 +219,25 @@ class NeuralAgentSelector:
         task: str,
         task_type: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
-        agent_histories: Optional[Dict[str, Dict[str, Any]]] = None
+        agent_histories: Optional[Dict[str, Dict[str, Any]]] = None,
+        causal_context: Optional[Dict[str, Any]] = None,
     ) -> List[Tuple[str, float]]:
         """
         Predict scores for all agents.
-        
+
         Args:
             task: Task description
             task_type: Type of task
             context: Task context
             agent_histories: Histories for all agents
-            
+            causal_context: Optional mapping of variable name →
+                CausalInterventionRecommendation (or plain dicts with at least
+                ``confidence`` and ``domain`` keys).  When a recommendation has
+                confidence >= 0.7, agents whose names contain keywords
+                associated with the recommendation's domain receive a small
+                additive score bonus.  This allows causal reasoning to
+                influence routing without overriding the learned model.
+
         Returns:
             List of (agent_name, score) tuples, sorted by score descending
         """
@@ -284,8 +292,38 @@ class NeuralAgentSelector:
         
         # Combine agent names with scores
         results = list(zip(agent_names, agent_scores))
+
+        # Apply causal boost when high-confidence recommendations exist
+        if causal_context:
+            _CAUSAL_DOMAIN_KEYWORDS = {
+                "parameter_tuning": ["parameter", "tuning", "optimizer", "calibrat"],
+                "reasoning": ["reason", "logic", "causal", "infer", "deduc"],
+                "analysis": ["analys", "evaluat", "assess", "review"],
+                "planning": ["plan", "schedul", "strateg", "orchestrat"],
+                "generation": ["generat", "synth", "creat", "writ"],
+            }
+            _BOOST = 0.3
+            _THRESHOLD = 0.7
+            boosted = []
+            for agent_name, score in results:
+                bonus = 0.0
+                for rec in causal_context.values():
+                    # Accept both dataclass objects and plain dicts
+                    if hasattr(rec, "confidence"):
+                        conf = rec.confidence
+                        domain = getattr(rec, "domain", "general")
+                    else:
+                        conf = rec.get("confidence", 0.0)
+                        domain = rec.get("domain", "general")
+                    if conf >= _THRESHOLD:
+                        keywords = _CAUSAL_DOMAIN_KEYWORDS.get(domain, [])
+                        if any(kw in agent_name.lower() for kw in keywords):
+                            bonus += _BOOST * conf
+                boosted.append((agent_name, score + bonus))
+            results = boosted
+
         results.sort(key=lambda x: x[1], reverse=True)
-        
+
         return results
     
     def update(self, event: OutcomeEvent, features: Optional[np.ndarray] = None) -> None:

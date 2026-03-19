@@ -191,6 +191,31 @@ class Settings(BaseSettings):
     )
 
     # =====================================================================================
+    # Human-in-the-Loop (HITL)
+    # =====================================================================================
+    hitl_mode: str = Field(
+        default="audit",
+        description=(
+            "HITL approval mode: "
+            "'gate' – synchronous gate (blocks until human approves/timeout); "
+            "'audit' – async logging only, execution proceeds immediately; "
+            "'disabled' – no HITL checks."
+        )
+    )
+    hitl_timeout_seconds: float = Field(
+        default=60.0,
+        description="Seconds gate mode waits for a human decision before auto-resolving."
+    )
+    hitl_auto_approve_on_timeout: bool = Field(
+        default=True,
+        description="If True, an unanswered gate request is approved after timeout; else rejected."
+    )
+    hitl_trusted_agents: list[str] = Field(
+        default_factory=list,
+        description="Agent names that bypass the HITL gate (e.g. read-only monitoring agents)."
+    )
+
+    # =====================================================================================
     # Third-Party / LLM API Keys
     # =====================================================================================
     abacusai_api_key: str = ""

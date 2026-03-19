@@ -35,24 +35,32 @@ class DistillationConfig:
 class KnowledgeDistiller:
     """
     Distills knowledge from teacher model to student model.
-    
+
     Transfers soft predictions (probabilities) from teacher to student
-    for better knowledge transfer.
+    for better knowledge transfer.  When PyTorch is unavailable the
+    distiller operates in *no-op mode*: ``distill()`` returns an empty
+    history so callers don't need conditional logic.
     """
-    
+
     def __init__(self, config: Optional[DistillationConfig] = None):
         """Initialize knowledge distiller."""
-        if not TORCH_AVAILABLE:
-            raise ImportError("PyTorch required for knowledge distillation")
-        
-        self.config = config or DistillationConfig()
         self.logger = get_logger(__name__)
+        if not TORCH_AVAILABLE:
+            logger.warning(
+                "PyTorch unavailable – KnowledgeDistiller running in no-op mode. "
+                "distill() will return an empty history."
+            )
+            self._noop = True
+            self.config = config or DistillationConfig()
+            return
+        self._noop = False
+        self.config = config or DistillationConfig()
     
     def distill(
         self,
-        teacher_model: nn.Module,
-        student_model: nn.Module,
-        train_data: Any,  # Dataset or DataLoader
+        teacher_model: Any,
+        student_model: Any,
+        train_data: Any,
         validation_data: Optional[Any] = None
     ) -> Dict[str, Any]:
         """
@@ -67,6 +75,10 @@ class KnowledgeDistiller:
         Returns:
             Training metrics and statistics
         """
+        if self._noop:
+            logger.warning("KnowledgeDistiller no-op: PyTorch unavailable, returning empty history")
+            return {"history": [], "final_train_loss": None, "final_val_loss": None}
+
         teacher_model.eval()  # Teacher in eval mode
         student_model.train()  # Student in train mode
         
@@ -206,22 +218,28 @@ class KnowledgeDistiller:
 class EnsembleDistiller:
     """
     Distills multiple teacher models into a single student.
-    
-    Combines knowledge from multiple expert models.
+
+    Combines knowledge from multiple expert models.  Operates in no-op mode
+    when PyTorch is unavailable.
     """
-    
+
     def __init__(self, config: Optional[DistillationConfig] = None):
         """Initialize ensemble distiller."""
-        if not TORCH_AVAILABLE:
-            raise ImportError("PyTorch required")
-        
-        self.config = config or DistillationConfig()
         self.logger = get_logger(__name__)
+        if not TORCH_AVAILABLE:
+            logger.warning(
+                "PyTorch unavailable – EnsembleDistiller running in no-op mode."
+            )
+            self._noop = True
+            self.config = config or DistillationConfig()
+            return
+        self._noop = False
+        self.config = config or DistillationConfig()
     
     def distill_ensemble(
         self,
-        teacher_models: List[nn.Module],
-        student_model: nn.Module,
+        teacher_models: List[Any],
+        student_model: Any,
         train_data: Any,
         teacher_weights: Optional[List[float]] = None
     ) -> Dict[str, Any]:
@@ -237,9 +255,13 @@ class EnsembleDistiller:
         Returns:
             Training statistics
         """
+        if self._noop:
+            logger.warning("EnsembleDistiller no-op: PyTorch unavailable, returning empty history")
+            return {"history": []}
+
         if teacher_weights is None:
             teacher_weights = [1.0 / len(teacher_models)] * len(teacher_models)
-        
+
         # Set all teachers to eval mode
         for teacher in teacher_models:
             teacher.eval()
