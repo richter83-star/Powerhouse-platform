@@ -261,7 +261,7 @@ def track_request_metrics(func):
 def get_metrics() -> str:
     """
     Get Prometheus metrics in OpenMetrics format.
-    
+
     Returns:
         Metrics in OpenMetrics format
     """
@@ -271,4 +271,44 @@ def get_metrics() -> str:
 def get_metrics_content_type() -> str:
     """Get content type for metrics endpoint."""
     return CONTENT_TYPE_LATEST
+
+
+# ===========================================================================
+# Architecture Bridge Metrics
+# These counters track the three new bridges introduced during the hardening
+# phase (HITL ApprovalGate, RL SwarmFeedbackBridge, CausalAgentRouter).
+# ===========================================================================
+
+# --- HITL ---
+hitl_requests_total = Counter(
+    'hitl_requests_total',
+    'Total HITL approval requests created',
+    ['mode', 'impact'],
+)
+
+hitl_resolved_total = Counter(
+    'hitl_resolved_total',
+    'Total HITL requests resolved (approved, rejected, or timed-out)',
+    ['mode', 'status', 'resolver'],
+)
+
+# --- RL / Swarm Feedback Bridge ---
+rl_ingestion_total = Counter(
+    'rl_ingestion_total',
+    'Total swarm execution outcomes ingested into the RL bridge',
+)
+
+# --- Causal Routing ---
+causal_routing_total = Counter(
+    'causal_routing_total',
+    'Total agent selection decisions made by the CausalAgentRouter',
+    ['domain', 'context_used'],
+)
+
+# --- Swarm ---
+swarm_executions_total = Counter(
+    'swarm_executions_total',
+    'Total swarm orchestrator executions',
+    ['status'],
+)
 

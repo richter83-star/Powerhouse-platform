@@ -21,12 +21,15 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from core.orchestrator import Orchestrator
 from config.settings import get_settings
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # --- Integration bridges ---
 from core.learning.swarm_feedback_bridge import (
@@ -37,6 +40,7 @@ from core.learning.swarm_feedback_bridge import (
 from core.human_in_the_loop import (
     build_approval_gate,
 )
+from core.human_in_the_loop.webhook_handler import build_webhook_handler
 from core.reasoning.causal_agent_router import (
     CausalAgentRouter,
     CausalInterventionRecommendation,
@@ -116,12 +120,30 @@ _swarm_bridge = SwarmFeedbackBridge()
 # audit_log_path set here so records are appended on every resolve and loaded
 # at construction.  The lifespan handler calls flush_audit_log() on shutdown
 # to capture any in-flight (pending) records as well.
+#
+# When HITL_WEBHOOK_URL is configured, build a notify-only handler that POSTs
+# the approval request payload to that URL so operators are notified in real
+# time and can call /hitl/{request_id}/decide without polling.
+_webhook_handler = None
+if settings.hitl_webhook_url:
+    try:
+        _server_base = os.environ.get("PH_SERVER_BASE_URL", "http://localhost:8000")
+        _webhook_handler = build_webhook_handler(
+            url=settings.hitl_webhook_url,
+            secret=settings.hitl_webhook_secret,
+            server_base_url=_server_base,
+        )
+        logger.info("HITL webhook handler configured → %s", settings.hitl_webhook_url)
+    except Exception as _wh_exc:
+        logger.warning("Failed to configure HITL webhook handler: %s", _wh_exc)
+
 _approval_gate = build_approval_gate(
     mode=settings.hitl_mode,
     timeout_seconds=settings.hitl_timeout_seconds,
     auto_approve_on_timeout=settings.hitl_auto_approve_on_timeout,
     trusted_agents=set(settings.hitl_trusted_agents),
     audit_log_path=_HITL_AUDIT_LOG_PATH,
+    approval_handler=_webhook_handler,
 )
 
 # --- Causal agent router (no CausalReasoner at server level; callers supply
@@ -476,6 +498,22 @@ async def hitl_audit(limit: int = 50) -> Dict[str, Any]:
 async def rl_statistics() -> Dict[str, Any]:
     """Return RL bridge statistics (for monitoring / debugging)."""
     return _swarm_bridge.get_statistics()
+
+
+@app.get("/metrics")
+async def metrics_endpoint() -> Response:
+    """
+    Expose all Prometheus metrics in OpenMetrics text format.
+
+    Compatible with any Prometheus scrape configuration::
+
+        - job_name: powerhouse
+          static_configs:
+            - targets: ["localhost:8000"]
+          metrics_path: /metrics
+    """
+    from core.monitoring.metrics import get_metrics, get_metrics_content_type
+    return Response(content=get_metrics(), media_type=get_metrics_content_type())
 
 
 # ---------------------------------------------------------------------------

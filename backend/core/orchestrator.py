@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from importlib import import_module
 import asyncio
+import time
 from concurrent.futures import ThreadPoolExecutor
 from utils.logging import get_logger
 
@@ -35,6 +36,74 @@ class Orchestrator:
         self.agents = [self._load_agent(n) for n in agent_names]
         self.execution_mode = execution_mode
         self.executor = ThreadPoolExecutor(max_workers=min(len(self.agents), 10))
+
+        # Optional feedback pipeline – publishes OutcomeEvent after each agent run
+        self._pipeline = None
+        try:
+            from config.settings import get_settings as _gs
+            from config.kafka_config import kafka_config as _kc
+            _settings = _gs()
+            if getattr(_settings, "enable_feedback_pipeline", True) and _kc.ENABLE_OUTCOME_LOGGING:
+                from core.feedback_pipeline import FeedbackPipeline
+                self._pipeline = FeedbackPipeline(
+                    kafka_servers=_kc.KAFKA_BOOTSTRAP_SERVERS if _kc.ENABLE_KAFKA else None,
+                    kafka_topic=_kc.KAFKA_OUTCOME_TOPIC,
+                    enable_kafka=_kc.ENABLE_KAFKA,
+                    enable_logging=True,
+                )
+                logger.info("FeedbackPipeline attached to Orchestrator")
+        except Exception as _fp_exc:
+            logger.debug("FeedbackPipeline not available: %s", _fp_exc)
+
+    def _emit(
+        self,
+        agent_name: str,
+        status: str,
+        start_ts: float,
+        end_ts: float,
+        output: Any,
+        error: Optional[str],
+        run_id: str,
+    ) -> None:
+        """
+        Publish an OutcomeEvent to the feedback pipeline (best-effort, never raises).
+
+        Args:
+            agent_name: Class name of the agent that executed.
+            status: "success" or "error".
+            start_ts: ``time.perf_counter()`` value captured before execution.
+            end_ts: ``time.perf_counter()`` value captured after execution.
+            output: Agent output (may be None on error).
+            error: Error message string (or None on success).
+            run_id: Orchestrator run identifier for correlation.
+        """
+        if self._pipeline is None:
+            return
+        try:
+            import uuid as _uuid
+            from datetime import datetime
+            from core.feedback_pipeline import OutcomeEvent, OutcomeStatus, EventSeverity
+            duration_ms = (end_ts - start_ts) * 1000.0
+            event = OutcomeEvent(
+                event_id=str(_uuid.uuid4()),
+                run_id=run_id,
+                agent_name=agent_name,
+                agent_type=agent_name,
+                action_type="orchestrator_run",
+                timestamp=datetime.utcnow().isoformat(),
+                start_time=str(start_ts),
+                end_time=str(end_ts),
+                duration_ms=duration_ms,
+                latency_ms=duration_ms,
+                status=OutcomeStatus.SUCCESS if status == "success" else OutcomeStatus.FAILURE,
+                severity=EventSeverity.INFO if status == "success" else EventSeverity.ERROR,
+                output={"output": str(output)[:500]} if output is not None else None,
+                error_message=error,
+                workflow_id=run_id,
+            )
+            self._pipeline.record_outcome_sync(event)
+        except Exception as _exc:
+            logger.debug("_emit failed (non-critical): %s", _exc)
 
     def _load_agent(self, name: str):
         """Load an agent by name."""
@@ -136,18 +205,23 @@ class Orchestrator:
         if meta_memory:
             context["state"]["meta_memory"] = meta_memory
 
+        _run_id = context.get("run_id") or str(id(context))
+
         # Execute agents sequentially
         for agent in self.agents:
             if hasattr(agent, "skip_in_main") and getattr(agent, "skip_in_main"):
                 continue
-            
+
+            _t0 = time.perf_counter()
             try:
                 out = agent.run(context)
+                _t1 = time.perf_counter()
                 context["outputs"].append({
                     "agent": agent.__class__.__name__,
                     "output": out,
                     "status": "success"
                 })
+                self._emit(agent.__class__.__name__, "success", _t0, _t1, out, None, _run_id)
                 if mem:
                     mem.update(context, out)
                 if meta_memory:
@@ -164,6 +238,7 @@ class Orchestrator:
                             metadata={"agent_name": agent.__class__.__name__, "task": task}
                         )
             except Exception as e:
+                _t1 = time.perf_counter()
                 logger.error(f"Agent {agent.__class__.__name__} failed: {e}", exc_info=True)
                 context["outputs"].append({
                     "agent": agent.__class__.__name__,
@@ -171,6 +246,7 @@ class Orchestrator:
                     "status": "error",
                     "error": str(e)
                 })
+                self._emit(agent.__class__.__name__, "error", _t0, _t1, None, str(e), _run_id)
                 # Continue with other agents unless configured to stop on error
                 if config.get("stop_on_error", False):
                     break
@@ -242,15 +318,20 @@ class Orchestrator:
             else:
                 parallel_agents.append(agent)
         
+        _run_id = context.get("run_id") or str(id(context))
+
         # Execute sequential agents first
         for agent in sequential_agents:
+            _t0 = time.perf_counter()
             try:
                 out = agent.run(context)
+                _t1 = time.perf_counter()
                 context["outputs"].append({
                     "agent": agent.__class__.__name__,
                     "output": out,
                     "status": "success"
                 })
+                self._emit(agent.__class__.__name__, "success", _t0, _t1, out, None, _run_id)
                 if mem:
                     mem.update(context, out)
                 if meta_memory:
@@ -267,6 +348,7 @@ class Orchestrator:
                             metadata={"agent_name": agent.__class__.__name__, "task": task}
                         )
             except Exception as e:
+                _t1 = time.perf_counter()
                 logger.error(f"Agent {agent.__class__.__name__} failed: {e}", exc_info=True)
                 context["outputs"].append({
                     "agent": agent.__class__.__name__,
@@ -274,21 +356,27 @@ class Orchestrator:
                     "status": "error",
                     "error": str(e)
                 })
-        
+                self._emit(agent.__class__.__name__, "error", _t0, _t1, None, str(e), _run_id)
+
         # Execute parallel agents concurrently
         if parallel_agents:
             def run_agent(agent):
                 """Run a single agent (for thread pool execution)."""
+                _t0 = time.perf_counter()
                 try:
                     # Create a copy of context for thread safety
                     agent_context = context.copy()
                     out = agent.run(agent_context)
+                    _t1 = time.perf_counter()
+                    self._emit(agent.__class__.__name__, "success", _t0, _t1, out, None, _run_id)
                     return {
                         "agent": agent.__class__.__name__,
                         "output": out,
                         "status": "success"
                     }
                 except Exception as e:
+                    _t1 = time.perf_counter()
+                    self._emit(agent.__class__.__name__, "error", _t0, _t1, None, str(e), _run_id)
                     logger.error(f"Agent {agent.__class__.__name__} failed: {e}", exc_info=True)
                     return {
                         "agent": agent.__class__.__name__,

@@ -347,6 +347,37 @@ class FeedbackPipeline:
         if self.enable_logging:
             self._log_event(event)
     
+    def record_outcome_sync(self, event: OutcomeEvent) -> None:
+        """
+        Synchronous variant of :meth:`record_outcome` for use from non-async code
+        (e.g. the synchronous ``Orchestrator`` execution methods).
+
+        Adds the event to the local buffer and logs it immediately.  If a Kafka
+        publisher is configured, the publish is fire-and-forgotten in a daemon
+        thread so the calling thread is never blocked by network I/O.
+        """
+        # Buffer (same logic as async version)
+        if len(self._event_buffer) >= self._buffer_max_size:
+            self._event_buffer.pop(0)
+        self._event_buffer.append(event)
+
+        # Log immediately
+        if self.enable_logging:
+            self._log_event(event)
+
+        # Fire-and-forget Kafka publish in a background daemon thread
+        if self.kafka_publisher:
+            import asyncio
+            import threading
+
+            def _publish():
+                try:
+                    asyncio.run(self.kafka_publisher.publish(event))
+                except Exception as exc:
+                    logger.debug("Kafka publish failed (background): %s", exc)
+
+            threading.Thread(target=_publish, daemon=True).start()
+
     def _log_event(self, event: OutcomeEvent) -> None:
         """Log an outcome event."""
         log_level = {
