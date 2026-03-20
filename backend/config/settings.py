@@ -217,6 +217,33 @@ class Settings(BaseSettings):
         default_factory=list,
         description="Agent names that bypass the HITL gate (e.g. read-only monitoring agents)."
     )
+    hitl_webhook_url: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional HTTP(S) URL to POST an approval request payload to whenever the gate "
+            "is triggered.  The payload includes request_id, task, agent_name, impact, and "
+            "a decide_url that receivers can call to approve/reject.  Leave unset to disable "
+            "outbound notifications."
+        )
+    )
+    hitl_webhook_secret: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional HMAC-SHA256 signing secret.  When set, every webhook POST includes an "
+            "'X-Powerhouse-Signature: sha256=<hex>' header so receivers can verify authenticity."
+        )
+    )
+
+    # =====================================================================================
+    # Feedback Pipeline
+    # =====================================================================================
+    enable_feedback_pipeline: bool = Field(
+        default=True,
+        description=(
+            "When True, the Orchestrator publishes an OutcomeEvent to the FeedbackPipeline "
+            "after each agent execution.  Disable to reduce overhead in benchmarks."
+        )
+    )
 
     # =====================================================================================
     # Third-Party / LLM API Keys

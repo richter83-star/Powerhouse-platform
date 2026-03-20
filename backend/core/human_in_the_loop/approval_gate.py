@@ -227,6 +227,13 @@ class ApprovalGate:
         self._events[req.request_id] = threading.Event()
         self.audit_trail.append(req)
         logger.debug("ApprovalRequest created: %s", req.request_id)
+        try:
+            from core.monitoring.metrics import hitl_requests_total
+            hitl_requests_total.labels(
+                mode=self.mode.value, impact=estimated_impact
+            ).inc()
+        except Exception:
+            pass
         return req
 
     def request_approval(self, req: ApprovalRequest) -> bool:
@@ -418,6 +425,15 @@ class ApprovalGate:
         self._events.pop(req.request_id, None)
         # Append to on-disk audit log (non-blocking best-effort)
         self._append_audit_log(req)
+        try:
+            from core.monitoring.metrics import hitl_resolved_total
+            hitl_resolved_total.labels(
+                mode=self.mode.value,
+                status=status.value,
+                resolver=resolver,
+            ).inc()
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Persistence helpers

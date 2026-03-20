@@ -281,6 +281,18 @@ class CausalAgentRouter:
             best_score,
             len(high_conf_recs),
         )
+        try:
+            from core.monitoring.metrics import causal_routing_total
+            # Derive a domain label from the winning causal recommendation if any
+            domain_label = "none"
+            if high_conf_recs:
+                domain_label = next(iter(high_conf_recs.values())).domain or "none"
+            causal_routing_total.labels(
+                domain=domain_label,
+                context_used="true" if high_conf_recs else "false",
+            ).inc()
+        except Exception:
+            pass
         return best_agent
 
     # ------------------------------------------------------------------

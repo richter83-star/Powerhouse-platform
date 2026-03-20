@@ -186,6 +186,11 @@ class SwarmFeedbackBridge:
         self._last_state = state
         self._last_action = action
         self._ingestion_count += 1
+        try:
+            from core.monitoring.metrics import rl_ingestion_total
+            rl_ingestion_total.inc()
+        except Exception:
+            pass
 
         logger.debug(
             "RL update #%d | reward=%.3f (success=%.2f, quality=%.2f, "
