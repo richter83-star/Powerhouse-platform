@@ -170,9 +170,20 @@ class Orchestrator:
 
     def _load_agent(self, name: str):
         """Load an agent by name."""
+        import inspect
         module = import_module(f"agents.{name}")
+        # Prefer a class named exactly 'Agent'
+        if hasattr(module, 'Agent'):
+            return module.Agent()
+        # Try the title-cased mangled name (e.g. memory_agent -> MemoryAgentAgent)
         agent_class_name = name.title().replace('_', '') + 'Agent'
-        return module.Agent() if hasattr(module, 'Agent') else module.__dict__[agent_class_name]()
+        if hasattr(module, agent_class_name):
+            return getattr(module, agent_class_name)()
+        # Fall back: first class in the module that has a run() method
+        for _, obj in inspect.getmembers(module, inspect.isclass):
+            if obj.__module__ == module.__name__ and callable(getattr(obj, 'run', None)):
+                return obj()
+        raise ImportError(f"No agent class found in agents.{name}")
 
     def run(self, task: str, config: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """
@@ -265,8 +276,7 @@ class Orchestrator:
         if mem:
             context["state"]["memory"] = mem.load()
         meta_memory = next((a for a in self.agents if a.__class__.__name__ == "MetaMemoryAgent"), None)
-        if meta_memory:
-            context["state"]["meta_memory"] = meta_memory
+        # NOTE: do not store the agent object in context — it is not JSON-serializable
 
         _run_id = context.get("run_id") or str(id(context))
 
@@ -394,8 +404,7 @@ class Orchestrator:
         if mem:
             context["state"]["memory"] = mem.load()
         meta_memory = next((a for a in self.agents if a.__class__.__name__ == "MetaMemoryAgent"), None)
-        if meta_memory:
-            context["state"]["meta_memory"] = meta_memory
+        # NOTE: do not store the agent object in context — it is not JSON-serializable
 
         # Group agents by execution constraints
         sequential_agents = []

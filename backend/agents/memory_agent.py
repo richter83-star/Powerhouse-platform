@@ -235,3 +235,6 @@ class MetaMemoryAgent(BaseAgent):
                 json.dump(data, handle)
         except Exception as exc:
             logger.warning(f"Failed to persist memory store: {exc}")
+
+# Alias so orchestrator can find this agent by the standard 'Agent' name
+Agent = MetaMemoryAgent

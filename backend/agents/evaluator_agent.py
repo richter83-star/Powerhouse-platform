@@ -46,7 +46,7 @@ class EvaluatorAgent(BaseAgent):
         if output is None:
             outputs = context.get("outputs", []) if context else []
             output = " ".join(
-                entry.get("output", "") for entry in outputs if entry.get("output")
+                str(entry.get("output", "")) for entry in outputs if entry.get("output")
             )
         task = context.get("task", "") if context else ""
         relevance = self._score_relevance(task, output)

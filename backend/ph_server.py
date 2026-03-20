@@ -517,7 +517,7 @@ async def run(
 
     # --- Orchestrator execution ---
     start_ms = time.monotonic() * 1000
-    result = _orchestrator.run(payload.task, context=context)
+    result = _orchestrator.run(payload.task, config=context)
     elapsed_ms = time.monotonic() * 1000 - start_ms
 
     # --- RL ingestion ---

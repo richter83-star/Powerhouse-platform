@@ -14,6 +14,26 @@ try:
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
+    # Provide minimal stubs so type annotations in class bodies don't fail
+    class _TorchStub:
+        class Tensor: pass
+        class device: pass
+        def __getattr__(self, name):
+            return type(name, (), {})()
+    class _NNStub:
+        class Module: pass
+        class Linear: pass
+        class ReLU: pass
+        class Dropout: pass
+        class Sequential: pass
+        def __getattr__(self, name):
+            return type(name, (), {})()
+    class _FStub:
+        def __getattr__(self, name):
+            return lambda *a, **kw: None
+    torch = _TorchStub()  # type: ignore[assignment]
+    nn = _NNStub()        # type: ignore[assignment]
+    F = _FStub()          # type: ignore[assignment]
 
 from core.learning.external_memory import ExternalMemoryBank
 from utils.logging import get_logger

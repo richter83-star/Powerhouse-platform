@@ -85,3 +85,6 @@ class MetaEvolverAgent:
             logger.info(f"Mutated agent config for {agent_name} (score={score:.2f})")
 
         return mutated_any
+
+# Alias so orchestrator can find this agent by the standard 'Agent' name
+Agent = MetaEvolverAgent

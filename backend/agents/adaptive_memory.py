@@ -114,3 +114,6 @@ class AdaptiveMemoryAgent:
             f"Reflection: AdaptiveMemoryAgent — store_size={len(self._store)}. "
             "Lesson: keep memory bounded; prefer recency + relevance weighting."
         )
+
+# Alias so orchestrator can find this agent by the standard 'Agent' name
+Agent = AdaptiveMemoryAgent

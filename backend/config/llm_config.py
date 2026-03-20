@@ -6,6 +6,9 @@ LLM Provider Configuration for Powerhouse Multi-Agent Platform.
 import os
 import logging
 from typing import Dict, Any, Optional
+from dotenv import load_dotenv
+
+load_dotenv(override=False)  # load .env before class-level os.getenv() calls; no-op if already set
 
 
 class LLMConfig:
@@ -131,8 +134,11 @@ class LLMConfig:
         provider = cls.DEFAULT_PROVIDER
         config = cls.get_provider_config(provider).copy()
 
+        # Re-read at call time so .env values loaded after class definition take effect
+        allow_no_key = os.getenv("LLM_ALLOW_NO_KEY", "").lower() in ("1", "true", "yes")
+        environment = os.getenv("ENVIRONMENT", "production").lower()
         if provider != "local" and not config.get("api_key"):
-            if cls.ALLOW_NO_KEY or cls.ENVIRONMENT in ("development", "test", "ci"):
+            if allow_no_key or environment in ("development", "test", "ci"):
                 provider = "local"
                 config = cls.get_provider_config(provider).copy()
                 logging.getLogger(__name__).info(

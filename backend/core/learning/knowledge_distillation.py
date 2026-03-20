@@ -5,7 +5,7 @@ Implements teacher-student learning for model compression and knowledge transfer
 """
 
 import numpy as np
-from typing import Dict, List, Optional, Tuple, Any
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 import logging
 
@@ -16,6 +16,26 @@ try:
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
+    # Provide minimal stubs so type annotations in class bodies don't fail
+    class _TorchStub:
+        class Tensor: pass
+        class device: pass
+        def __getattr__(self, name):
+            return type(name, (), {})()
+    class _NNStub:
+        class Module: pass
+        class Linear: pass
+        class ReLU: pass
+        class Dropout: pass
+        class Sequential: pass
+        def __getattr__(self, name):
+            return type(name, (), {})()
+    class _FStub:
+        def __getattr__(self, name):
+            return lambda *a, **kw: None
+    torch = _TorchStub()  # type: ignore[assignment]
+    nn = _NNStub()        # type: ignore[assignment]
+    F = _FStub()          # type: ignore[assignment]
 
 from utils.logging import get_logger
 
@@ -152,10 +172,10 @@ class KnowledgeDistiller:
     
     def _compute_distillation_loss(
         self,
-        student_outputs: torch.Tensor,
-        teacher_probs: torch.Tensor,
-        hard_targets: Optional[torch.Tensor]
-    ) -> torch.Tensor:
+        student_outputs: "Any",
+        teacher_probs: "Any",
+        hard_targets: "Optional[Any]"
+    ) -> "Any":
         """
         Compute combined distillation loss.
         
@@ -180,10 +200,10 @@ class KnowledgeDistiller:
     
     def _validate(
         self,
-        student_model: nn.Module,
-        teacher_model: nn.Module,
+        student_model: "Any",
+        teacher_model: "Any",
         validation_data: Any,
-        device: torch.device
+        device: "Any"
     ) -> float:
         """Validate student model."""
         student_model.eval()

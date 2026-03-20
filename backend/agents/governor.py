@@ -11,3 +11,6 @@ class GovernorAgent:
         task = context.get("task", "")
         lesson = "Block risky content early and provide clear feedback."
         return f"Reflection: Governor reviewed '{task}'. Lesson learned: {lesson}"
+
+# Alias so orchestrator can find this agent by the standard 'Agent' name
+Agent = GovernorAgent
