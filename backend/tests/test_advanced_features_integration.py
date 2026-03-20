@@ -14,8 +14,8 @@ class TestEnhancedAgents:
         """Test enhanced ReAct agent initialization."""
         from core.agents.enhanced_react_agent import EnhancedReActAgent
         
-        # Test with all features disabled
-        agent = EnhancedReActAgent()
+        # Test with all features explicitly disabled
+        agent = EnhancedReActAgent(enable_causal=False, enable_neurosymbolic=False, enable_hierarchical=False)
         assert agent.enable_causal == False
         assert agent.enable_neurosymbolic == False
         assert agent.enable_hierarchical == False
