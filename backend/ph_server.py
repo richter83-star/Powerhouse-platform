@@ -21,9 +21,9 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, WebSocket, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from api.middleware import RateLimitMiddleware
 from core.security.rate_limit_config import security_rate_limits
 
@@ -56,6 +56,66 @@ from core.swarm.swarm_orchestrator import SwarmOrchestrator
 settings = get_settings()
 
 # ---------------------------------------------------------------------------
+# Authentication dependency (Group A)
+# ---------------------------------------------------------------------------
+
+def _get_optional_token(request: Request) -> Optional[str]:
+    """Extract Bearer token or X-API-Key from request headers."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[7:]
+    return request.headers.get("X-API-Key")
+
+
+def require_api_auth(request: Request) -> Dict[str, Any]:
+    """
+    FastAPI dependency that enforces authentication on protected endpoints.
+
+    Accepts either:
+    - ``Authorization: Bearer <JWT>``
+    - ``X-API-Key: <key>``
+
+    When ``settings.api_keys`` is empty AND ``settings.secret_key`` is the
+    default placeholder the server is assumed to be running in un-keyed dev
+    mode and all requests pass through (with a warning logged once).
+    """
+    _dev_mode = (
+        not getattr(settings, "api_keys", [])
+        and settings.secret_key == "your-secret-key-change-in-production"
+    )
+    if _dev_mode:
+        return {"user_id": "dev", "tenant_id": "dev", "roles": ["admin"]}
+
+    token = _get_optional_token(request)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Provide 'Authorization: Bearer <token>' or 'X-API-Key: <key>'.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Try static API key list first
+    api_keys = getattr(settings, "api_keys", [])
+    if api_keys and token in api_keys:
+        return {"user_id": "api_key_user", "tenant_id": "default", "roles": ["user"]}
+
+    # Try JWT verification
+    try:
+        from core.security import verify_token
+        payload = verify_token(token)
+        if payload:
+            return payload
+    except Exception:
+        pass
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired token.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Persistence paths (override via env vars)
 # ---------------------------------------------------------------------------
 _RL_CHECKPOINT_PATH  = os.environ.get("PH_RL_CHECKPOINT",  "data/rl_bridge.pt")
@@ -85,10 +145,53 @@ async def lifespan(app: FastAPI):
     except Exception as _exc:
         logger.warning("Could not read advanced_features_config: %s", _exc)
 
+    # Register alert notification channels if configured (Group E)
+    try:
+        from core.monitoring.alerting import alert_manager, SlackAlertHandler, EmailAlertHandler, AlertSeverity
+        _slack_url = getattr(settings, "alert_slack_webhook_url", None)
+        _email_to = getattr(settings, "alert_email_recipient", None)
+        _min_sev_str = getattr(settings, "alert_min_severity", "error").lower()
+        _sev_map = {
+            "info": AlertSeverity.INFO,
+            "warning": AlertSeverity.WARNING,
+            "error": AlertSeverity.ERROR,
+            "critical": AlertSeverity.CRITICAL,
+        }
+        _min_sev = _sev_map.get(_min_sev_str, AlertSeverity.ERROR)
+        if _slack_url:
+            alert_manager.register_handler(SlackAlertHandler(_slack_url, min_severity=_min_sev))
+            logger.info("Slack alert handler registered (min_severity=%s)", _min_sev_str)
+        if _email_to:
+            alert_manager.register_handler(EmailAlertHandler(_email_to, min_severity=AlertSeverity.CRITICAL))
+            logger.info("Email alert handler registered (recipient=%s)", _email_to)
+        # Set operational thresholds
+        alert_manager.set_threshold("agent_error_rate", {"warning": 0.3, "error": 0.6, "critical": 0.9})
+        alert_manager.set_threshold("circuit_breaker_open_count", {"warning": 1, "error": 3, "critical": 5})
+    except Exception as _al_exc:
+        logger.warning("Alert handler registration failed: %s", _al_exc)
+
+    # Initialise OpenTelemetry tracing if enabled (Feature 9)
+    if getattr(settings, "otel_enabled", False):
+        try:
+            from core.monitoring.tracing import setup_tracing
+            setup_tracing(
+                service_name=getattr(settings, "otel_service_name", "powerhouse"),
+                otlp_endpoint=getattr(settings, "otel_otlp_endpoint", None),
+            )
+        except Exception as _otel_exc:
+            logger.warning("OpenTelemetry setup failed: %s", _otel_exc)
+
     yield
     # --- Shutdown ---
     _swarm_bridge.save(_RL_CHECKPOINT_PATH)
     _approval_gate.flush_audit_log()
+
+    # Flush and shut down the tracer so all spans are exported before exit
+    try:
+        from core.monitoring.tracing import shutdown_tracing
+        shutdown_tracing()
+    except Exception:
+        pass
 
 
 app = FastAPI(
@@ -105,6 +208,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def _global_exception_handler(request: Request, exc: Exception) -> Response:
+    """Return a structured JSON 500 for any unhandled exception."""
+    import traceback
+    error_id = str(uuid.uuid4())
+    logger.error(
+        "Unhandled exception [error_id=%s] %s %s: %s",
+        error_id, request.method, request.url.path, exc,
+        exc_info=True,
+    )
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "error_id": error_id,
+            "path": request.url.path,
+        },
+    )
 
 # Rate limiting: workflow endpoints — 10 requests per minute per IP/user
 # (matches SecurityRateLimitConfig.workflow_max_requests).
@@ -199,6 +323,16 @@ class RunRequest(BaseModel):
     # Optional causal context: variable name → {confidence, domain, predicted_effect}
     # When provided, agent selection is boosted toward matching specialisations.
     causal_context: Optional[Dict[str, Dict[str, Any]]] = None
+
+    @field_validator("task")
+    @classmethod
+    def task_must_be_non_empty_and_bounded(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("task must not be empty")
+        if len(v) > 10_000:
+            raise ValueError("task must not exceed 10 000 characters")
+        return v
 
 
 class RunResponse(BaseModel):
@@ -311,7 +445,10 @@ async def health() -> Dict[str, Any]:
 
 
 @app.post("/run", response_model=RunResponse)
-async def run(payload: RunRequest) -> RunResponse:
+async def run(
+    payload: RunRequest,
+    _auth: Dict[str, Any] = Depends(require_api_auth),
+) -> RunResponse:
     """
     Execute a task through the orchestration pipeline.
 
@@ -409,7 +546,10 @@ async def run(payload: RunRequest) -> RunResponse:
 
 
 @app.post("/run/swarm", response_model=SwarmRunResponse)
-async def run_swarm(payload: SwarmRunRequest) -> SwarmRunResponse:
+async def run_swarm(
+    payload: SwarmRunRequest,
+    _auth: Dict[str, Any] = Depends(require_api_auth),
+) -> SwarmRunResponse:
     """
     Execute a task using stigmergic swarm intelligence.
 
@@ -527,6 +667,169 @@ async def metrics_endpoint() -> Response:
     """
     from core.monitoring.metrics import get_metrics, get_metrics_content_type
     return Response(content=get_metrics(), media_type=get_metrics_content_type())
+
+
+@app.get("/circuit-breakers")
+async def circuit_breakers_endpoint() -> Dict[str, Any]:
+    """
+    Return the current state and statistics of all per-agent circuit breakers.
+
+    Useful for diagnosing which agents are repeatedly failing and when their
+    cooldown window expires.
+    """
+    return {
+        name: cb.get_stats()
+        for name, cb in _orchestrator._circuit_breakers.items()
+    }
+
+
+@app.get("/agents/capabilities")
+async def agent_capabilities() -> Dict[str, Any]:
+    """
+    Discover all loaded agents and their capability lists.
+
+    Returns two views:
+    - ``agents``:       agent class name → capability list
+    - ``capabilities``: capability string → list of agent class names
+    """
+    agents_map: Dict[str, List[str]] = {}
+    cap_map: Dict[str, List[str]] = {}
+    for agent in _orchestrator.agents:
+        name = agent.__class__.__name__
+        caps = (
+            getattr(type(agent), "CAPABILITIES", None)
+            or getattr(agent, "capabilities", None)
+            or []
+        )
+        agents_map[name] = list(caps)
+        for cap in caps:
+            cap_map.setdefault(cap, []).append(name)
+    return {"agents": agents_map, "capabilities": cap_map}
+
+
+@app.websocket("/ws/run")
+async def ws_run(websocket: WebSocket) -> None:
+    """
+    WebSocket endpoint for real-time bidirectional agent execution.
+
+    The client sends a single JSON message with a ``task`` field and optionally
+    a ``context`` dict.  Each agent result is pushed as it completes; a final
+    ``{"done": true}`` frame closes the stream.
+
+    Example (JavaScript)::
+
+        const ws = new WebSocket("ws://localhost:8000/ws/run");
+        ws.onopen = () => ws.send(JSON.stringify({ task: "analyse the dataset" }));
+        ws.onmessage = (e) => console.log(JSON.parse(e.data));
+    """
+    import asyncio as _aio
+    import json as _json
+
+    await websocket.accept()
+    try:
+        raw = await websocket.receive_text()
+        data = _json.loads(raw)
+    except Exception as exc:
+        await websocket.send_json({"error": f"Invalid payload: {exc}"})
+        await websocket.close()
+        return
+
+    task = data.get("task", "")
+    extra_ctx = data.get("context") or {}
+    if not task:
+        await websocket.send_json({"error": "task field is required"})
+        await websocket.close()
+        return
+
+    _queue: _aio.Queue = _aio.Queue()
+    _loop = _aio.get_event_loop()
+
+    def _cb(result: Dict[str, Any]) -> None:
+        _loop.call_soon_threadsafe(_queue.put_nowait, result)
+
+    fut = _loop.run_in_executor(
+        None,
+        lambda: _orchestrator.run_streaming(task, extra_ctx, _cb),
+    )
+
+    while not fut.done():
+        try:
+            item = await _aio.wait_for(_queue.get(), timeout=0.1)
+            await websocket.send_json(item)
+        except _aio.TimeoutError:
+            continue
+        except Exception:
+            break
+
+    # Drain remaining
+    while not _queue.empty():
+        item = _queue.get_nowait()
+        try:
+            await websocket.send_json(item)
+        except Exception:
+            break
+
+    try:
+        await websocket.send_json({"done": True})
+        await websocket.close()
+    except Exception:
+        pass
+
+
+@app.post("/run/stream")
+async def run_stream(
+    payload: RunRequest,
+    _auth: Dict[str, Any] = Depends(require_api_auth),
+) -> Response:
+    """
+    Execute a task and stream each agent's result as a Server-Sent Events (SSE) stream.
+
+    Each agent result is emitted immediately as it finishes::
+
+        data: {"agent": "ReactAgent", "status": "success", "output": "...", "duration_ms": 123}\n\n
+
+    The stream closes with a final ``data: {"done": true}`` event.
+
+    Client example (curl)::
+
+        curl -N -X POST /run/stream \\
+             -H 'Content-Type: application/json' \\
+             -d '{"task": "analyse the dataset"}'
+    """
+    import asyncio as _asyncio
+    import json as _json
+
+    run_id = str(uuid.uuid4())
+    context = payload.context or {}
+    context["run_id"] = run_id
+    _queue: _asyncio.Queue = _asyncio.Queue()
+    _loop = _asyncio.get_event_loop()
+
+    def _cb(result: Dict[str, Any]) -> None:
+        _loop.call_soon_threadsafe(_queue.put_nowait, result)
+
+    async def _event_stream():
+        fut = _loop.run_in_executor(
+            None,
+            lambda: _orchestrator.run_streaming(payload.task, payload.context or {}, _cb),
+        )
+        while not fut.done():
+            try:
+                item = await _asyncio.wait_for(_queue.get(), timeout=0.1)
+                yield f"data: {_json.dumps(item)}\n\n"
+            except _asyncio.TimeoutError:
+                continue
+        # Drain any items that arrived after fut completed
+        while not _queue.empty():
+            item = _queue.get_nowait()
+            yield f"data: {_json.dumps(item)}\n\n"
+        yield 'data: {"done": true}\n\n'
+
+    return Response(
+        content=_event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ---------------------------------------------------------------------------

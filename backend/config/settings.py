@@ -80,12 +80,50 @@ class Settings(BaseSettings):
     # =====================================================================================
     max_agents_per_workflow: int = 19
     agent_timeout_seconds: int = 300
+    agent_execution_timeout_seconds: int = Field(
+        default=30,
+        description=(
+            "Per-call timeout (seconds) for a single agent.run() invocation. "
+            "A hanging agent is cancelled after this limit. Env: AGENT_EXECUTION_TIMEOUT."
+        )
+    )
 
     # =====================================================================================
     # Workflow
     # =====================================================================================
     max_retry_attempts: int = 3
     workflow_timeout_seconds: int = 600
+
+    # =====================================================================================
+    # Circuit Breaker
+    # =====================================================================================
+    circuit_breaker_failure_threshold: int = Field(
+        default=3,
+        description="Number of consecutive failures before a per-agent circuit opens."
+    )
+    circuit_breaker_timeout_seconds: int = Field(
+        default=60,
+        description="Seconds a circuit stays open before transitioning to HALF_OPEN."
+    )
+
+    # =====================================================================================
+    # OpenTelemetry Tracing
+    # =====================================================================================
+    otel_enabled: bool = Field(
+        default=False,
+        description="Enable OpenTelemetry distributed tracing. Env: OTEL_ENABLED."
+    )
+    otel_service_name: str = Field(
+        default="powerhouse",
+        description="OpenTelemetry service name reported in traces."
+    )
+    otel_otlp_endpoint: Optional[str] = Field(
+        default=None,
+        description=(
+            "OTLP gRPC endpoint for span export (e.g. 'http://jaeger:4317'). "
+            "When unset, spans are printed to console (dev mode). Env: OTEL_OTLP_ENDPOINT."
+        )
+    )
 
     # =====================================================================================
     # Logging
@@ -232,6 +270,28 @@ class Settings(BaseSettings):
             "Optional HMAC-SHA256 signing secret.  When set, every webhook POST includes an "
             "'X-Powerhouse-Signature: sha256=<hex>' header so receivers can verify authenticity."
         )
+    )
+
+    # =====================================================================================
+    # Alerting
+    # =====================================================================================
+    alert_slack_webhook_url: Optional[str] = Field(
+        default=None,
+        description=(
+            "Slack Incoming Webhook URL for operational alerts. "
+            "Leave unset to disable Slack notifications. Env: ALERT_SLACK_WEBHOOK_URL."
+        )
+    )
+    alert_email_recipient: Optional[str] = Field(
+        default=None,
+        description=(
+            "Email address to receive CRITICAL alerts. "
+            "Leave unset to disable email notifications. Env: ALERT_EMAIL_RECIPIENT."
+        )
+    )
+    alert_min_severity: str = Field(
+        default="error",
+        description="Minimum alert severity to dispatch externally (info/warning/error/critical)."
     )
 
     # =====================================================================================
