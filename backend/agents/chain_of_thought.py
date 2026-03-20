@@ -11,7 +11,9 @@ logger = get_logger(__name__)
 
 class Agent:
     """Chain-of-Thought reasoning agent that breaks down problems into steps."""
-    
+
+    CAPABILITIES = ["reasoning", "analysis"]
+
     def __init__(self):
         """Initialize Chain-of-Thought agent."""
         self.llm = LLMConfig.get_llm_provider("chain_of_thought")

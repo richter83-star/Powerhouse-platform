@@ -26,6 +26,8 @@ class MetaMemoryAgent(BaseAgent):
     A meta-level agent that evaluates, scores, compresses, and manages memory across agents.
     """
 
+    CAPABILITIES = ["memory", "analysis"]
+
     def __init__(
         self,
         embedding_model: str = "all-MiniLM-L6-v2",

@@ -24,6 +24,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from api.middleware import RateLimitMiddleware
+from core.security.rate_limit_config import security_rate_limits
 
 from core.orchestrator import Orchestrator
 from config.settings import get_settings
@@ -104,6 +106,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting: workflow endpoints — 10 requests per minute per IP/user
+# (matches SecurityRateLimitConfig.workflow_max_requests).
+app.add_middleware(
+    RateLimitMiddleware,
+    requests_per_minute=security_rate_limits.workflow_max_requests,
+)
+
 # Load orchestrator configuration once at startup
 with open("config/default.json", "r", encoding="utf-8") as f:
     _cfg = json.load(f)
@@ -152,6 +161,10 @@ _causal_router = CausalAgentRouter(
     causal_reasoner=None,   # no live graph at server startup
     agent_selector=None,    # uses NeuralAgentSelector with default settings
 )
+
+# Wire the RL bridge to the causal router so that after bootstrap_interval
+# swarm runs the auto-discovered causal graph is injected into the router.
+_swarm_bridge.causal_agent_router = _causal_router
 
 # --- Swarm orchestrator (lazy agent registration on first /run/swarm call) ---
 _swarm_orchestrator = SwarmOrchestrator(base_orchestrator=_orchestrator)

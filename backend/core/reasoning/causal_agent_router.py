@@ -272,7 +272,7 @@ class CausalAgentRouter:
 
         # --- Apply causal boost ---
         if high_conf_recs:
-            scores = self._apply_causal_boost(scores, high_conf_recs)
+            scores = self._apply_causal_boost(scores, high_conf_recs, agent_histories)
 
         best_agent, best_score = scores[0]
         logger.info(
@@ -303,27 +303,61 @@ class CausalAgentRouter:
         self,
         scores: List[Tuple[str, float]],
         high_conf_recs: Dict[str, CausalInterventionRecommendation],
+        agent_histories: Optional[Dict[str, Any]] = None,
     ) -> List[Tuple[str, float]]:
         """
-        Boost scores for agents whose names match a high-confidence domain.
-        """
-        domain_keywords_flat: Dict[str, List[str]] = {}
-        for rec in high_conf_recs.values():
-            domain_keywords_flat[rec.domain] = DOMAIN_KEYWORDS.get(
-                rec.domain, []
-            )
+        Boost scores for agents whose names or capabilities match a
+        high-confidence causal domain.
 
+        Matching logic (either condition is sufficient):
+        1. Agent name contains a keyword associated with the recommendation domain.
+        2. Agent's ``capabilities`` list (stored in ``agent_histories[name]``)
+           contains the recommendation domain string.
+        """
         boosted: List[Tuple[str, float]] = []
         for agent_name, score in scores:
             bonus = 0.0
+            # Look up registered capabilities for this agent if available
+            agent_caps: List[str] = []
+            if agent_histories:
+                hist = agent_histories.get(agent_name, {})
+                agent_caps = hist.get("capabilities", []) if isinstance(hist, dict) else []
+
             for rec in high_conf_recs.values():
                 keywords = DOMAIN_KEYWORDS.get(rec.domain, [])
-                if any(kw in agent_name.lower() for kw in keywords):
+                name_match = any(kw in agent_name.lower() for kw in keywords)
+                cap_match = rec.domain in agent_caps
+                if name_match or cap_match:
                     bonus += self.causal_boost * rec.confidence
             boosted.append((agent_name, score + bonus))
 
         boosted.sort(key=lambda x: x[1], reverse=True)
         return boosted
+
+    def inject_causal_graph(self, graph: Any) -> None:
+        """
+        Replace the causal graph used by the router's ``CausalReasoner``.
+
+        If the router was created without a ``CausalReasoner``, a new one is
+        created from the supplied graph so that :meth:`build_recommendation`
+        becomes available.
+
+        Args:
+            graph: A ``CausalGraph`` instance (from ``CausalDiscovery.discover``).
+        """
+        if self.causal_reasoner is not None:
+            self.causal_reasoner.graph = graph
+            logger.info("CausalAgentRouter: causal graph updated (%d nodes)", len(graph.nodes))
+        else:
+            try:
+                from core.reasoning.causal_reasoner import CausalReasoner
+                self.causal_reasoner = CausalReasoner(causal_graph=graph)
+                logger.info(
+                    "CausalAgentRouter: CausalReasoner created from bootstrapped graph "
+                    "(%d nodes)", len(graph.nodes)
+                )
+            except Exception as exc:
+                logger.warning("inject_causal_graph: failed to create CausalReasoner: %s", exc)
 
     def get_statistics(self) -> Dict[str, Any]:
         """Return selector metadata for monitoring."""

@@ -13,7 +13,9 @@ logger = get_logger(__name__)
 
 class Agent:
     """ReAct (Reasoning + Acting) agent."""
-    
+
+    CAPABILITIES = ["reasoning", "planning", "tool_use"]
+
     def __init__(self):
         """Initialize ReAct agent."""
         self.llm = LLMConfig.get_llm_provider("react")

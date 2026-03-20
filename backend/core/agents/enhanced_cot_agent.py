@@ -21,6 +21,8 @@ class EnhancedChainOfThoughtAgent(BaseCoTAgent):
     the knowledge graph so they can be applied during each reasoning step.
     """
 
+    CAPABILITIES = ["reasoning", "analysis", "causal", "neurosymbolic"]
+
     def __init__(
         self,
         enable_causal: Optional[bool] = None,

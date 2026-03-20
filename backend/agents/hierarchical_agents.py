@@ -1,4 +1,6 @@
 class Agent:
+    CAPABILITIES = ["planning", "orchestration"]
+
     def run(self, context):
         return "hierarchical_agents processed: " + context.get('task','')
 

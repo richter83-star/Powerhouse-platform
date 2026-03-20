@@ -181,7 +181,9 @@ class SafeAutoLoopAgent:
 # For backwards compatibility with old import
 class Agent:
     """Legacy Agent class for compatibility"""
-    
+
+    CAPABILITIES = ["reasoning", "planning"]
+
     def __init__(self):
         self.safe_agent = SafeAutoLoopAgent()
     

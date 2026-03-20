@@ -12,6 +12,8 @@ class EvaluatorAgent(BaseAgent):
     Evaluates agent outputs for relevance, efficiency, and completeness.
     """
 
+    CAPABILITIES = ["analysis", "evaluation"]
+
     def __init__(self):
         super().__init__(
             name="EvaluatorAgent",

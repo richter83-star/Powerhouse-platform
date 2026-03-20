@@ -1,4 +1,6 @@
 class Agent:
+    CAPABILITIES = ["tool_use"]
+
     def run(self, context):
         return "toolformer processed: " + context.get('task','')
 

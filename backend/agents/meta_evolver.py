@@ -13,6 +13,7 @@ class MetaEvolverAgent:
     Mutates agent configs based on evaluation feedback.
     """
 
+    CAPABILITIES = ["analysis", "generation", "meta"]
     skip_in_main = True
 
     def __init__(

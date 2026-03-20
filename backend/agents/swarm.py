@@ -12,6 +12,8 @@ class SwarmAgent:
     Swarm agent that collects proposals and selects a consensus answer.
     """
 
+    CAPABILITIES = ["planning", "swarm"]
+
     def __init__(self):
         self.stigmergy = StigmergicMemory()
 

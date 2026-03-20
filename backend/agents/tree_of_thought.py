@@ -26,7 +26,9 @@ class ThoughtNode:
 
 class Agent:
     """Tree-of-Thought agent that explores multiple reasoning paths."""
-    
+
+    CAPABILITIES = ["reasoning", "planning", "generation"]
+
     def __init__(self):
         """Initialize Tree-of-Thought agent."""
         self.llm = LLMConfig.get_llm_provider("tree_of_thought")
