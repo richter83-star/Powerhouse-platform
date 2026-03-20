@@ -4,9 +4,10 @@ Swarm Orchestrator: Coordinates agent swarm without central control.
 Uses stigmergy and emergent behaviors for decentralized coordination.
 """
 
-from typing import Dict, List, Optional, Set, Any
+from typing import Dict, List, Optional, Set, Any, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import asyncio
 
 from core.swarm.stigmergy import StigmergicMemory
@@ -88,68 +89,96 @@ class SwarmOrchestrator:
         results = []
         iteration = 0
         
+        # Use a thread pool so agents within each iteration run concurrently.
+        # We snapshot the stigmergic environment BEFORE the iteration so every
+        # agent sees the same traces (no ordering bias); traces are deposited
+        # only AFTER all agents in the iteration have completed.
+        _max_workers = max(1, min(len(self.swarm_agents), 10))
+
         while iteration < max_iterations and self.swarm_agents:
             iteration += 1
-            
-            # Agents decide actions based on environment (stigmergy)
-            iteration_results = []
-            
-            for agent_id, swarm_agent in self.swarm_agents.items():
-                # Read environment (traces left by other agents)
+
+            # --- snapshot environment for this iteration ---
+            env_snapshot: Dict[str, Any] = {}
+            for swarm_agent in self.swarm_agents.values():
                 if use_stigmergy:
-                    traces = self.stigmergic_memory.read_traces(swarm_agent.current_location)
-                    
-                    # Agent decides action based on traces
-                    action = self._agent_decide_action(swarm_agent, traces, task)
-                else:
-                    action = "explore"  # Default action
-                
-                # Execute action
+                    env_snapshot[swarm_agent.agent_id] = self.stigmergic_memory.read_traces(
+                        swarm_agent.current_location
+                    )
+
+            # --- parallel execution helper ---
+            def _run_single(agent_id: str, swarm_agent: "SwarmAgent") -> Tuple[str, str, Any]:
+                traces = env_snapshot.get(agent_id, [])
+                action = (
+                    self._agent_decide_action(swarm_agent, traces, task)
+                    if use_stigmergy else "explore"
+                )
                 try:
-                    if hasattr(swarm_agent.agent_instance, 'run'):
+                    if hasattr(swarm_agent.agent_instance, "run"):
                         result = swarm_agent.agent_instance.run({
                             "task": task,
                             "action": action,
                             "location": swarm_agent.current_location,
-                            "context": swarm_agent.state
+                            "context": swarm_agent.state,
                         })
                     else:
                         result = f"Agent {agent_id} executed {action}"
-                    
-                    # Leave trace in environment
-                    if use_stigmergy:
-                        trace_value = self._calculate_trace_value(result, action)
-                        self.stigmergic_memory.deposit_trace(
-                            agent_id=agent_id,
-                            location=swarm_agent.current_location,
-                            trace_type="pheromone",
-                            value=trace_value,
-                            metadata={"action": action, "result": result}
-                        )
-                    
-                    # Observe for emergent patterns
-                    self.emergent_detector.observe_action(
-                        agent_id=agent_id,
-                        action=action,
-                        location=swarm_agent.current_location,
-                        metadata={"result": result}
-                    )
-                    
+                except Exception as exc:
+                    self.logger.error("Swarm agent %s failed: %s", agent_id, exc)
+                    result = f"error: {exc}"
+                return agent_id, action, result
+
+            # --- fan-out all agents concurrently ---
+            iteration_results = []
+            with ThreadPoolExecutor(max_workers=_max_workers) as _pool:
+                futures = {
+                    _pool.submit(_run_single, aid, sa): (aid, sa)
+                    for aid, sa in self.swarm_agents.items()
+                }
+                for future in as_completed(futures):
+                    try:
+                        agent_id, action, result = future.result()
+                    except Exception as exc:
+                        agent_id, sa = futures[future]
+                        self.logger.error("Swarm future for %s raised: %s", agent_id, exc)
+                        continue
+
+                    swarm_agent = self.swarm_agents[agent_id]
+                    swarm_agent.last_action = action
                     iteration_results.append({
                         "agent_id": agent_id,
                         "action": action,
                         "result": result,
-                        "location": swarm_agent.current_location
+                        "location": swarm_agent.current_location,
                     })
-                    
-                    swarm_agent.last_action = action
-                    
-                except Exception as e:
-                    self.logger.error(f"Agent {agent_id} execution failed: {e}")
-            
+
+            # --- deposit traces AFTER all agents finished (no ordering bias) ---
+            if use_stigmergy:
+                for entry in iteration_results:
+                    aid = entry["agent_id"]
+                    swarm_agent = self.swarm_agents[aid]
+                    trace_value = self._calculate_trace_value(entry["result"], entry["action"])
+                    self.stigmergic_memory.deposit_trace(
+                        agent_id=aid,
+                        location=swarm_agent.current_location,
+                        trace_type="pheromone",
+                        value=trace_value,
+                        metadata={"action": entry["action"], "result": entry["result"]},
+                    )
+
+            # --- emergent pattern observation ---
+            for entry in iteration_results:
+                swarm_agent = self.swarm_agents[entry["agent_id"]]
+                self.emergent_detector.observe_action(
+                    agent_id=entry["agent_id"],
+                    action=entry["action"],
+                    location=swarm_agent.current_location,
+                    metadata={"result": entry["result"]},
+                )
+
             results.append({
                 "iteration": iteration,
-                "results": iteration_results
+                "results": iteration_results,
             })
             
             # Check for convergence (emergent consensus)

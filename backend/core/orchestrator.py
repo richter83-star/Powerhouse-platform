@@ -65,6 +65,41 @@ class Orchestrator:
         except Exception as _cb_exc:
             logger.debug("Circuit breakers unavailable: %s", _cb_exc)
 
+        # Agent-to-agent message bus (Group D)
+        # Already guarded: COMMUNICATION_AVAILABLE checked at import time (line 10-16).
+        self._comm: Any = None
+        if COMMUNICATION_AVAILABLE and CommunicationProtocol is not None:
+            try:
+                self._comm = CommunicationProtocol()
+                # Register each agent so they can send/receive messages
+                for agent in self.agents:
+                    name = agent.__class__.__name__
+                    caps = (
+                        getattr(type(agent), "CAPABILITIES", None)
+                        or getattr(agent, "capabilities", [])
+                        or []
+                    )
+                    self._comm.register_agent(
+                        name=name,
+                        agent_type=name,
+                        capabilities=list(caps),
+                    )
+                logger.info(
+                    "CommunicationProtocol initialised for %d agents", len(self.agents)
+                )
+            except Exception as _cm_exc:
+                logger.debug("CommunicationProtocol init failed: %s", _cm_exc)
+                self._comm = None
+
+        # State checkpoint manager (Group C)
+        self._checkpoint: Any = None
+        try:
+            from core.resilience.state_checkpoint import StateCheckpointManager
+            self._checkpoint = StateCheckpointManager()
+            logger.info("StateCheckpointManager initialised (dir=%s)", self._checkpoint.checkpoint_dir)
+        except Exception as _cp_exc:
+            logger.debug("StateCheckpointManager unavailable: %s", _cp_exc)
+
         # Optional feedback pipeline – publishes OutcomeEvent after each agent run
         self._pipeline = None
         try:
@@ -240,6 +275,21 @@ class Orchestrator:
             if hasattr(agent, "skip_in_main") and getattr(agent, "skip_in_main"):
                 continue
 
+            # Inject any pending inter-agent messages into context (Group D)
+            if self._comm:
+                try:
+                    from communication.message import MessageType
+                    pending = self._comm.message_bus.get_messages(
+                        agent.__class__.__name__, max_messages=10
+                    )
+                    if pending:
+                        context.setdefault("messages", {})[agent.__class__.__name__] = [
+                            {"sender": m.sender, "content": m.content, "type": m.message_type}
+                            for m in pending
+                        ]
+                except Exception:
+                    pass
+
             _t0 = time.perf_counter()
             try:
                 out = self._run_agent_with_timeout(agent, context)
@@ -250,6 +300,21 @@ class Orchestrator:
                     "status": "success"
                 })
                 self._emit(agent.__class__.__name__, "success", _t0, _t1, out, None, _run_id)
+
+                # Broadcast result to all other agents via message bus (Group D)
+                if self._comm:
+                    try:
+                        from communication.message import Message, MessageType
+                        self._comm.message_bus.publish(Message(
+                            sender=agent.__class__.__name__,
+                            receiver="broadcast",
+                            message_type=MessageType.NOTIFICATION,
+                            content=str(out)[:500],
+                            run_id=_run_id,
+                        ))
+                    except Exception:
+                        pass
+
                 if mem:
                     mem.update(context, out)
                 if meta_memory:
@@ -554,25 +619,43 @@ class Orchestrator:
     
     def _execute_with_timeout(self, agent: Any, context: Dict[str, Any]) -> Any:
         """
-        Submit ``agent.run(context)`` to the executor and wait with a timeout.
+        Submit ``agent.run(context)`` to the executor, wait with a per-call
+        timeout, and retry transient failures with exponential back-off (Group C).
 
         Raises:
-            TimeoutError: If the agent exceeds ``agent_execution_timeout_seconds``.
+            TimeoutError: If the agent exceeds ``agent_execution_timeout_seconds``
+                          (not retried — a hung agent is a structural problem).
+            Exception: Re-raises the last exception after exhausting retries.
         """
         timeout = getattr(self._settings, "agent_execution_timeout_seconds", 30)
-        future = self.executor.submit(agent.run, context)
-        try:
-            return future.result(timeout=timeout)
-        except concurrent.futures.TimeoutError:
-            future.cancel()
+        max_attempts = max(1, getattr(self._settings, "max_retry_attempts", 3))
+
+        last_exc: Optional[Exception] = None
+        for attempt in range(1, max_attempts + 1):
+            future = self.executor.submit(agent.run, context)
             try:
-                from core.monitoring.metrics import agent_timeout_total
-                agent_timeout_total.labels(agent_name=agent.__class__.__name__).inc()
-            except Exception:
-                pass
-            raise TimeoutError(
-                f"Agent {agent.__class__.__name__} exceeded {timeout}s execution timeout"
-            )
+                return future.result(timeout=timeout)
+            except concurrent.futures.TimeoutError:
+                future.cancel()
+                try:
+                    from core.monitoring.metrics import agent_timeout_total
+                    agent_timeout_total.labels(agent_name=agent.__class__.__name__).inc()
+                except Exception:
+                    pass
+                raise TimeoutError(
+                    f"Agent {agent.__class__.__name__} exceeded {timeout}s execution timeout"
+                )
+            except Exception as exc:
+                last_exc = exc
+                if attempt < max_attempts:
+                    delay = min(1.0 * (2.0 ** (attempt - 1)), 30.0)
+                    logger.warning(
+                        "Agent %s attempt %d/%d failed (%s); retrying in %.1fs",
+                        agent.__class__.__name__, attempt, max_attempts, exc, delay,
+                    )
+                    time.sleep(delay)
+
+        raise last_exc  # type: ignore[misc]
 
     def _run_agent_with_timeout(self, agent: Any, context: Dict[str, Any]) -> Any:
         """
@@ -781,6 +864,17 @@ class Orchestrator:
                 callback(result)
             except Exception as _cb_exc:
                 logger.debug("Streaming callback error: %s", _cb_exc)
+
+            # Checkpoint context after each agent so we can recover partial runs
+            if self._checkpoint:
+                try:
+                    self._checkpoint.save_checkpoint(
+                        state={"outputs": context["outputs"], "task": task},
+                        agent_id=result["agent"],
+                        workflow_id=_run_id,
+                    )
+                except Exception as _ck_exc:
+                    logger.debug("Checkpoint save failed: %s", _ck_exc)
 
         return {"results": context["outputs"], "mode": "streaming", "task": task}
 

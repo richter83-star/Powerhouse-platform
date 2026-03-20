@@ -273,6 +273,28 @@ class Settings(BaseSettings):
     )
 
     # =====================================================================================
+    # Alerting
+    # =====================================================================================
+    alert_slack_webhook_url: Optional[str] = Field(
+        default=None,
+        description=(
+            "Slack Incoming Webhook URL for operational alerts. "
+            "Leave unset to disable Slack notifications. Env: ALERT_SLACK_WEBHOOK_URL."
+        )
+    )
+    alert_email_recipient: Optional[str] = Field(
+        default=None,
+        description=(
+            "Email address to receive CRITICAL alerts. "
+            "Leave unset to disable email notifications. Env: ALERT_EMAIL_RECIPIENT."
+        )
+    )
+    alert_min_severity: str = Field(
+        default="error",
+        description="Minimum alert severity to dispatch externally (info/warning/error/critical)."
+    )
+
+    # =====================================================================================
     # Feedback Pipeline
     # =====================================================================================
     enable_feedback_pipeline: bool = Field(
