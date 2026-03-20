@@ -209,8 +209,10 @@ class Orchestrator:
             Execution results
         """
         context = {"task": task, "outputs": [], "state": {}}
+        task = self._maybe_decompose_task(task, context)
+        context["task"] = task
         config = config or {}
-        
+
         # Pre-flight check
         gov = next((a for a in self.agents if a.__class__.__name__ == "GovernorAgent"), None)
         if gov:
