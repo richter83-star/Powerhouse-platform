@@ -1,4 +1,6 @@
 class Agent:
+    CAPABILITIES = ["planning", "tool_use", "generation"]
+
     def run(self, context):
         return "voyager processed: " + context.get('task','')
 

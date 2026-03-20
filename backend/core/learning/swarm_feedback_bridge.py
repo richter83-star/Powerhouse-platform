@@ -116,6 +116,7 @@ class SwarmFeedbackBridge:
         algorithm: str = "dqn",
         latency_penalty_weight: float = 0.2,
         cost_penalty_weight: float = 0.1,
+        bootstrap_interval: int = 20,
     ) -> None:
         """
         Args:
@@ -126,9 +127,12 @@ class SwarmFeedbackBridge:
             algorithm: "dqn" or "ppo".
             latency_penalty_weight: Reward weight for latency penalty.
             cost_penalty_weight: Reward weight for cost penalty.
+            bootstrap_interval: Number of ingestions between automatic causal
+                graph bootstrap attempts.
         """
         self.latency_penalty_weight = latency_penalty_weight
         self.cost_penalty_weight = cost_penalty_weight
+        self.bootstrap_interval = bootstrap_interval
 
         if rl_optimizer is not None:
             self.rl = rl_optimizer
@@ -150,6 +154,13 @@ class SwarmFeedbackBridge:
         self._last_state: Optional[RLState] = None
         self._last_action: Optional[RLAction] = None
         self._ingestion_count: int = 0
+
+        # Causal graph bootstrapped from history data (populated automatically)
+        self.causal_graph: Optional[Any] = None
+
+        # Optional reference to a CausalAgentRouter; set externally to receive
+        # the bootstrapped graph via inject_causal_graph().
+        self.causal_agent_router: Optional[Any] = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -202,6 +213,69 @@ class SwarmFeedbackBridge:
             reward.latency_penalty,
             reward.cost_penalty,
         )
+
+        # Periodically bootstrap a causal graph from accumulated history
+        if (
+            self.bootstrap_interval > 0
+            and len(self._history) >= self.bootstrap_interval
+            and len(self._history) % self.bootstrap_interval == 0
+        ):
+            self._try_bootstrap_causal_graph()
+
+    def _try_bootstrap_causal_graph(self, min_samples: int = 10) -> None:
+        """
+        Attempt to auto-discover a causal graph from swarm execution history.
+
+        Builds a feature matrix from the most recent ``min_samples`` feedback
+        entries and calls ``CausalDiscovery.discover()``.  On success, stores
+        the result in ``self.causal_graph`` and, if a ``causal_agent_router``
+        is wired in, injects the graph there too.
+
+        Silently skips if the data is insufficient or discovery fails.
+        """
+        samples = self._history[-max(min_samples, self.bootstrap_interval):]
+        if len(samples) < min_samples:
+            logger.debug("Causal bootstrap skipped: only %d samples", len(samples))
+            return
+        try:
+            import numpy as np
+            from core.reasoning.causal_discovery import CausalDiscovery
+
+            variables = ["success", "quality", "latency_norm", "agent_score_mean"]
+            rows: List[List[float]] = []
+            for fb in samples:
+                agent_mean = (
+                    sum(fb.agent_performance.values()) / len(fb.agent_performance)
+                    if fb.agent_performance else 0.5
+                )
+                rows.append([
+                    float(fb.success),
+                    float(fb.quality_score),
+                    float(min(1.0, fb.latency_ms / self._MAX_LATENCY_MS)),
+                    float(agent_mean),
+                ])
+
+            data = {
+                v: np.array([r[i] for r in rows])
+                for i, v in enumerate(variables)
+            }
+
+            graph = CausalDiscovery().discover(data)
+            self.causal_graph = graph
+            logger.info(
+                "Causal graph bootstrapped from %d history samples (%d edges)",
+                len(samples),
+                sum(len(children) for children in graph.edges.values()),
+            )
+
+            if self.causal_agent_router is not None:
+                try:
+                    self.causal_agent_router.inject_causal_graph(graph)
+                except Exception as _inj_exc:
+                    logger.debug("inject_causal_graph failed: %s", _inj_exc)
+
+        except Exception as exc:
+            logger.debug("Causal graph bootstrap failed: %s", exc)
 
     def get_recommended_adjustments(
         self,

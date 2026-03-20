@@ -1,4 +1,6 @@
 class Agent:
+    CAPABILITIES = ["reasoning", "planning"]
+
     def run(self, context):
         return "auto_loop_agent processed: " + context.get('task','')
 

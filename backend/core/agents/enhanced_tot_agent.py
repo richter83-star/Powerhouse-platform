@@ -23,6 +23,8 @@ class EnhancedTreeOfThoughtAgent(BaseToTAgent):
     in :meth:`score_paths`.
     """
 
+    CAPABILITIES = ["reasoning", "planning", "generation", "causal"]
+
     def __init__(self, enable_causal: Optional[bool] = None):
         """
         Initialize enhanced ToT agent.

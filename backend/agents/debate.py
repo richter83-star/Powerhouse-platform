@@ -1,4 +1,6 @@
 class Agent:
+    CAPABILITIES = ["reasoning", "analysis"]
+
     def run(self, context):
         return "debate processed: " + context.get('task', '')
 

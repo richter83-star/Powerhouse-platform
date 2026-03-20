@@ -525,6 +525,23 @@ class Orchestrator:
         variables = [w for w in words if w[0].isupper() and len(w) > 2]
         return variables[:5]  # Return top 5
     
+    def _agent_has_capability(self, agent: Any, capability: str) -> bool:
+        """
+        Return True if *agent* has *capability*.
+
+        Checks (in order):
+        1. Class-level ``CAPABILITIES`` list (e.g. ``Agent.CAPABILITIES``).
+        2. Instance-level ``capabilities`` attribute set by ``BaseAgent.__init__``.
+        3. Fallback: substring match on the class name (legacy behaviour).
+        """
+        caps = getattr(type(agent), "CAPABILITIES", None) or getattr(agent, "CAPABILITIES", None)
+        if caps is None:
+            caps = getattr(agent, "capabilities", None)
+        if caps:
+            return capability in caps
+        # Fallback: name-keyword heuristic for agents without a CAPABILITIES attribute
+        return capability in agent.__class__.__name__.lower()
+
     def run_adaptive(self, task: str, config: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """
         Run agents adaptively based on task requirements and agent capabilities.
@@ -554,34 +571,36 @@ class Orchestrator:
             if not ok:
                 return {"error": f"Governor blocked task: {msg}"}
 
-        # Simple adaptive logic: select agents based on task keywords
-        # In production, this would use ML models for routing
+        # Capability-based adaptive agent selection.
         task_lower = task.lower()
         selected_agents = []
-        
+
+        # Determine which capability the task requires
+        required_capability: Optional[str] = None
+        if any(kw in task_lower for kw in ["reason", "think", "analyze", "solve", "explain"]):
+            required_capability = "reasoning"
+        elif any(kw in task_lower for kw in ["plan", "schedule", "strateg", "orchestrat"]):
+            required_capability = "planning"
+        elif any(kw in task_lower for kw in ["generat", "write", "create", "synth"]):
+            required_capability = "generation"
+        elif any(kw in task_lower for kw in ["search", "lookup", "find", "retriev"]):
+            required_capability = "tool_use"
+
         for agent in self.agents:
             if hasattr(agent, "skip_in_main") and getattr(agent, "skip_in_main"):
                 continue
-            
-            # Check if agent is relevant (simple keyword matching)
-            # In production, use capability matching or ML-based selection
-            agent_name = agent.__class__.__name__.lower()
-            
-            # Always include certain agents
-            if any(keyword in agent_name for keyword in ["governor", "memory", "evaluator"]):
+
+            # Always include support agents (memory, evaluation, safety)
+            if any(
+                self._agent_has_capability(agent, cap)
+                for cap in ("memory", "evaluation", "safety")
+            ):
                 selected_agents.append(agent)
-            # Include reasoning agents for complex tasks
-            elif any(keyword in task_lower for keyword in ["reason", "think", "analyze", "solve"]):
-                if any(keyword in agent_name for keyword in ["react", "chain", "tree", "planning"]):
-                    selected_agents.append(agent)
-            # Include specialized agents based on task content
-            elif any(keyword in task_lower for keyword in ["search", "lookup", "find"]):
-                if "react" in agent_name or "toolformer" in agent_name:
-                    selected_agents.append(agent)
-            else:
-                # Default: include all non-special agents
-                if not any(keyword in agent_name for keyword in ["governor", "memory", "evaluator", "meta"]):
-                    selected_agents.append(agent)
+            elif required_capability and self._agent_has_capability(agent, required_capability):
+                selected_agents.append(agent)
+            elif required_capability is None:
+                # No specific capability inferred — include all task agents
+                selected_agents.append(agent)
         
         logger.info(f"Adaptive mode selected {len(selected_agents)} agents for task")
         

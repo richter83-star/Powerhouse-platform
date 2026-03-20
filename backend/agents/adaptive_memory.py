@@ -1,4 +1,6 @@
 class AdaptiveMemoryAgent:
+    CAPABILITIES = ["memory", "analysis"]
+
     def __init__(self):
         self.mem = []
     def load(self):

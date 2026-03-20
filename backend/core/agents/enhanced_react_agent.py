@@ -23,6 +23,8 @@ class EnhancedReActAgent(BaseReActAgent):
     - Hierarchical task decomposition for complex tasks
     """
 
+    CAPABILITIES = ["reasoning", "planning", "tool_use", "causal"]
+
     def __init__(
         self,
         enable_causal: Optional[bool] = None,

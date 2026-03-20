@@ -11,6 +11,8 @@ class CurriculumAgent:
     Tracks task difficulty and adapts the curriculum using epsilon-greedy promotion/demotion.
     """
 
+    CAPABILITIES = ["planning", "analysis"]
+
     def __init__(self, epsilon: float = 0.1, seed: Optional[int] = None):
         self.epsilon = epsilon
         self.levels = ["easy", "medium", "hard"]
