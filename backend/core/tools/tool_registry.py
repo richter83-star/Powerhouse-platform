@@ -35,7 +35,15 @@ class ToolRegistry:
         self.enable_synthesis = enable_synthesis
         self.synthesizer = None
         
-        if enable_synthesis and TOOL_SYNTHESIS_AVAILABLE:
+        # Also check feature flag (gracefully skip if config unavailable)
+        _synthesis_enabled_by_flag = True
+        try:
+            from config.advanced_features_config import advanced_features_config as _afc
+            _synthesis_enabled_by_flag = _afc.ENABLE_PROGRAM_SYNTHESIS
+        except Exception:
+            pass
+
+        if enable_synthesis and TOOL_SYNTHESIS_AVAILABLE and _synthesis_enabled_by_flag:
             self.synthesizer = ToolSynthesizer(tool_registry=self)
     
     def register(self, tool: BaseTool) -> None:

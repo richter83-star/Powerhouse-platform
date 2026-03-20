@@ -6,6 +6,9 @@ from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
+# Re-export so callers have a single import for both settings objects
+from config.advanced_features_config import advanced_features_config  # noqa: F401
+
 
 class Settings(BaseSettings):
     """Application settings."""
