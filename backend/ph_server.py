@@ -85,10 +85,28 @@ async def lifespan(app: FastAPI):
     except Exception as _exc:
         logger.warning("Could not read advanced_features_config: %s", _exc)
 
+    # Initialise OpenTelemetry tracing if enabled (Feature 9)
+    if getattr(settings, "otel_enabled", False):
+        try:
+            from core.monitoring.tracing import setup_tracing
+            setup_tracing(
+                service_name=getattr(settings, "otel_service_name", "powerhouse"),
+                otlp_endpoint=getattr(settings, "otel_otlp_endpoint", None),
+            )
+        except Exception as _otel_exc:
+            logger.warning("OpenTelemetry setup failed: %s", _otel_exc)
+
     yield
     # --- Shutdown ---
     _swarm_bridge.save(_RL_CHECKPOINT_PATH)
     _approval_gate.flush_audit_log()
+
+    # Flush and shut down the tracer so all spans are exported before exit
+    try:
+        from core.monitoring.tracing import shutdown_tracing
+        shutdown_tracing()
+    except Exception:
+        pass
 
 
 app = FastAPI(
@@ -527,6 +545,97 @@ async def metrics_endpoint() -> Response:
     """
     from core.monitoring.metrics import get_metrics, get_metrics_content_type
     return Response(content=get_metrics(), media_type=get_metrics_content_type())
+
+
+@app.get("/circuit-breakers")
+async def circuit_breakers_endpoint() -> Dict[str, Any]:
+    """
+    Return the current state and statistics of all per-agent circuit breakers.
+
+    Useful for diagnosing which agents are repeatedly failing and when their
+    cooldown window expires.
+    """
+    return {
+        name: cb.get_stats()
+        for name, cb in _orchestrator._circuit_breakers.items()
+    }
+
+
+@app.get("/agents/capabilities")
+async def agent_capabilities() -> Dict[str, Any]:
+    """
+    Discover all loaded agents and their capability lists.
+
+    Returns two views:
+    - ``agents``:       agent class name → capability list
+    - ``capabilities``: capability string → list of agent class names
+    """
+    agents_map: Dict[str, List[str]] = {}
+    cap_map: Dict[str, List[str]] = {}
+    for agent in _orchestrator.agents:
+        name = agent.__class__.__name__
+        caps = (
+            getattr(type(agent), "CAPABILITIES", None)
+            or getattr(agent, "capabilities", None)
+            or []
+        )
+        agents_map[name] = list(caps)
+        for cap in caps:
+            cap_map.setdefault(cap, []).append(name)
+    return {"agents": agents_map, "capabilities": cap_map}
+
+
+@app.post("/run/stream")
+async def run_stream(payload: RunRequest) -> Response:
+    """
+    Execute a task and stream each agent's result as a Server-Sent Events (SSE) stream.
+
+    Each agent result is emitted immediately as it finishes::
+
+        data: {"agent": "ReactAgent", "status": "success", "output": "...", "duration_ms": 123}\n\n
+
+    The stream closes with a final ``data: {"done": true}`` event.
+
+    Client example (curl)::
+
+        curl -N -X POST /run/stream \\
+             -H 'Content-Type: application/json' \\
+             -d '{"task": "analyse the dataset"}'
+    """
+    import asyncio as _asyncio
+    import json as _json
+
+    run_id = str(uuid.uuid4())
+    context = payload.context or {}
+    context["run_id"] = run_id
+    _queue: _asyncio.Queue = _asyncio.Queue()
+    _loop = _asyncio.get_event_loop()
+
+    def _cb(result: Dict[str, Any]) -> None:
+        _loop.call_soon_threadsafe(_queue.put_nowait, result)
+
+    async def _event_stream():
+        fut = _loop.run_in_executor(
+            None,
+            lambda: _orchestrator.run_streaming(payload.task, payload.context or {}, _cb),
+        )
+        while not fut.done():
+            try:
+                item = await _asyncio.wait_for(_queue.get(), timeout=0.1)
+                yield f"data: {_json.dumps(item)}\n\n"
+            except _asyncio.TimeoutError:
+                continue
+        # Drain any items that arrived after fut completed
+        while not _queue.empty():
+            item = _queue.get_nowait()
+            yield f"data: {_json.dumps(item)}\n\n"
+        yield 'data: {"done": true}\n\n'
+
+    return Response(
+        content=_event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ---------------------------------------------------------------------------

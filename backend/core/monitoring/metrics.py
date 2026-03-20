@@ -312,3 +312,16 @@ swarm_executions_total = Counter(
     ['status'],
 )
 
+# --- Agent execution resilience ---
+agent_timeout_total = Counter(
+    'agent_timeout_total',
+    'Total agent executions that exceeded the per-call timeout',
+    ['agent_name'],
+)
+
+circuit_breaker_open_total = Counter(
+    'circuit_breaker_open_total',
+    'Total requests rejected because an agent circuit breaker was OPEN',
+    ['agent_name'],
+)
+
