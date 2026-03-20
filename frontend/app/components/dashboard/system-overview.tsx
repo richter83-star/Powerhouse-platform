@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Network,
   AlertCircle,
@@ -228,22 +229,32 @@ export function SystemOverview() {
     <div className="space-y-6">
       {/* Key Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {metrics.length === 0 ? (
-          <Card className="col-span-full bg-white/80 backdrop-blur-sm border-slate-200">
-            <CardContent className="p-6 text-center text-slate-600">
-              {loading ? 'Loading metrics...' : 'No system metrics available yet'}
+        {loading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="border-border/40">
+              <CardContent className="p-6 space-y-3">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-20" />
+              </CardContent>
+            </Card>
+          ))
+        ) : metrics.length === 0 ? (
+          <Card className="col-span-full border-border/40">
+            <CardContent className="p-6 text-center text-muted-foreground">
+              No system metrics available yet
             </CardContent>
           </Card>
         ) : (
           metrics.map((metric, index) => (
-            <Card key={index} className="bg-white/80 backdrop-blur-sm border-slate-200 hover:shadow-lg transition-all duration-300">
+            <Card key={index} className="border-border/40 hover:shadow-md transition-all duration-300">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-3">
-                  <p className="text-sm font-medium text-slate-600">{metric.label}</p>
+                  <p className="text-sm font-medium text-muted-foreground">{metric.label}</p>
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{metric.value}</p>
+                <p className="text-3xl font-bold text-foreground">{metric.value}</p>
                 {metric.note && (
-                  <p className="text-xs text-slate-500 mt-2">
+                  <p className="text-xs text-muted-foreground mt-2">
                     {metric.note}
                   </p>
                 )}

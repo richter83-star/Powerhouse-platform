@@ -43,14 +43,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12 px-4">
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-background py-12 px-4">
       <Card className="w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-            <Network className="w-8 h-8 text-blue-600" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
+            <Network className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome Back</h1>
-          <p className="text-gray-600">Sign in to access your dashboard</p>
+          <h1 className="text-2xl font-bold text-foreground mb-2">Welcome Back</h1>
+          <p className="text-muted-foreground">Sign in to access your dashboard</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -87,7 +87,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+            <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm" role="alert">
               {error}
             </div>
           )}

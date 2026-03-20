@@ -1,4 +1,7 @@
 const path = require("path");
+const withBundleAnalyzer = require("@next/bundle-analyzer")({
+  enabled: process.env.ANALYZE === "true",
+});
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -16,7 +19,12 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: false },
 
-  images: { unoptimized: true },
+  images: {
+    unoptimized: false,
+    remotePatterns: [
+      { protocol: 'https', hostname: '**' },
+    ],
+  },
 };
 
-module.exports = nextConfig;
+module.exports = withBundleAnalyzer(nextConfig);

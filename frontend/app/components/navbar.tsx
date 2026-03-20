@@ -44,7 +44,7 @@ export function Navbar() {
   const showSystemLinks = currentUseCase.id === 'generic';
 
   return (
-    <nav className="sticky top-0 z-50 bg-slate-950/90 backdrop-blur-xl border-b border-white/10 shadow-lg">
+    <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur-xl border-b border-border shadow-lg">
       <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -72,7 +72,7 @@ export function Navbar() {
             <div className="hidden md:flex items-center gap-1">
               <Link 
                 href="/dashboard" 
-                className="flex items-center gap-2 px-3 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
+                className="flex items-center gap-2 px-3 py-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all duration-300"
               >
                 <LayoutDashboard className="w-4 h-4" />
                 Dashboard
@@ -80,7 +80,7 @@ export function Navbar() {
               
               <Link 
                 href="/agents" 
-                className="flex items-center gap-2 px-3 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
+                className="flex items-center gap-2 px-3 py-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all duration-300"
               >
                 <Users className="w-4 h-4" />
                 Agents
@@ -89,40 +89,40 @@ export function Navbar() {
               {/* Marketplace Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-2 px-3 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300">
+                  <button className="flex items-center gap-2 px-3 py-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all duration-300">
                     <Package className="w-4 h-4" />
                     Marketplace
                     <ChevronDown className="w-3 h-3" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-48 bg-slate-900 border-white/10 backdrop-blur-xl">
+                <DropdownMenuContent align="start" className="w-48">
                   <DropdownMenuItem asChild>
-                    <Link href="/marketplace" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                    <Link href="/marketplace" className="flex items-center gap-2 w-full cursor-pointer">
                       <Package className="w-4 h-4" />
                       Browse Marketplace
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/agent-builder" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                    <Link href="/agent-builder" className="flex items-center gap-2 w-full cursor-pointer">
                       <Users className="w-4 h-4" />
                       Agent Builder
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/app-builder" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                    <Link href="/app-builder" className="flex items-center gap-2 w-full cursor-pointer">
                       <LayoutDashboard className="w-4 h-4" />
                       App Builder
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/my-sales" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                    <Link href="/my-sales" className="flex items-center gap-2 w-full cursor-pointer">
                       <Database className="w-4 h-4" />
                       My Sales
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/budget-settings" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                    <Link href="/budget-settings" className="flex items-center gap-2 w-full cursor-pointer">
                       <Settings className="w-4 h-4" />
                       Budget Settings
                     </Link>
@@ -134,58 +134,58 @@ export function Navbar() {
               {showSystemLinks && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 px-3 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300">
+                    <button className="flex items-center gap-2 px-3 py-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all duration-300">
                       <Settings className="w-4 h-4" />
                       System
                       <ChevronDown className="w-3 h-3" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48 bg-slate-900 border-white/10 backdrop-blur-xl">
+                  <DropdownMenuContent align="start" className="w-48">
                     <DropdownMenuItem asChild>
-                      <Link href="/architecture" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                      <Link href="/architecture" className="flex items-center gap-2 w-full cursor-pointer">
                         <Network className="w-4 h-4" />
                         Architecture
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/plugins" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                      <Link href="/plugins" className="flex items-center gap-2 w-full cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent">
                         <Package className="w-4 h-4" />
                         Plugins
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/cicd" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                      <Link href="/cicd" className="flex items-center gap-2 w-full cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent">
                         <GitBranch className="w-4 h-4" />
                         CI/CD Pipeline
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/observability" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                      <Link href="/observability" className="flex items-center gap-2 w-full cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent">
                         <Activity className="w-4 h-4" />
                         Observability
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/integrations" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                      <Link href="/integrations" className="flex items-center gap-2 w-full cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent">
                         <Plug className="w-4 h-4" />
                         Integrations
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/ai-quality" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                      <Link href="/ai-quality" className="flex items-center gap-2 w-full cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent">
                         <Sparkles className="w-4 h-4" />
                         AI Quality
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/commercial" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                      <Link href="/commercial" className="flex items-center gap-2 w-full cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent">
                         <Building2 className="w-4 h-4" />
                         Commercial
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator className="bg-white/10" />
+                    <DropdownMenuSeparator className="bg-border" />
                     <DropdownMenuItem asChild>
-                      <Link href="/data-manager" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                      <Link href="/data-manager" className="flex items-center gap-2 w-full cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent">
                         <Database className="w-4 h-4" />
                         Data Manager
                       </Link>
@@ -202,30 +202,30 @@ export function Navbar() {
               <div className="flex items-center gap-3">
                 <Link 
                   href="/settings"
-                  className="flex items-center gap-2 px-3 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
+                  className="flex items-center gap-2 px-3 py-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all duration-300"
                 >
                   <Settings className="w-4 h-4" />
                 </Link>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 px-3 py-2 hover:bg-white/10 rounded-lg transition-all duration-300">
+                    <button className="flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-lg transition-all duration-300">
                       <div className="text-right">
-                        <p className="text-sm font-medium text-white">
+                        <p className="text-sm font-medium text-foreground">
                           {session?.user?.name}
                         </p>
-                        <p className="text-xs text-slate-400">Administrator</p>
+                        <p className="text-xs text-muted-foreground">Administrator</p>
                       </div>
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48 bg-slate-900 border-white/10 backdrop-blur-xl">
+                  <DropdownMenuContent align="end" className="w-48">
                     <DropdownMenuItem asChild>
-                      <Link href="/settings" className="flex items-center gap-2 w-full cursor-pointer text-slate-300 hover:text-white hover:bg-white/10">
+                      <Link href="/settings" className="flex items-center gap-2 w-full cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent">
                         <Settings className="w-4 h-4" />
                         Settings
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator className="bg-white/10" />
+                    <DropdownMenuSeparator className="bg-border" />
                     <DropdownMenuItem 
                       onClick={() => signOut({ callbackUrl: '/' })}
                       className="flex items-center gap-2 cursor-pointer text-red-400 hover:text-red-300 hover:bg-red-500/10"
@@ -239,7 +239,7 @@ export function Navbar() {
             ) : (
               <>
                 <Link href="/login">
-                  <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-white/10">
+                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground hover:bg-accent">
                     Login
                   </Button>
                 </Link>
@@ -267,12 +267,12 @@ export function Navbar() {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-white/10 bg-slate-900/50 backdrop-blur-xl">
+          <div className="md:hidden py-4 border-t border-border bg-background/95 backdrop-blur-xl">
             {isLoggedIn && (
               <div className="flex flex-col gap-2 mb-4">
                 <Link 
                   href="/dashboard" 
-                  className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-white/10 rounded-lg transition-all duration-300"
+                  className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-accent rounded-lg transition-all duration-300"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <LayoutDashboard className="w-4 h-4" />
@@ -280,7 +280,7 @@ export function Navbar() {
                 </Link>
                 <Link 
                   href="/agents" 
-                  className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-white/10 rounded-lg transition-all duration-300"
+                  className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-accent rounded-lg transition-all duration-300"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <Users className="w-4 h-4" />
@@ -292,7 +292,7 @@ export function Navbar() {
                     <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase mt-2">System</div>
                     <Link 
                       href="/architecture" 
-                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-white/10 rounded-lg transition-all duration-300"
+                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-accent rounded-lg transition-all duration-300"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Network className="w-4 h-4" />
@@ -300,7 +300,7 @@ export function Navbar() {
                     </Link>
                     <Link 
                       href="/plugins" 
-                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-white/10 rounded-lg transition-all duration-300"
+                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-accent rounded-lg transition-all duration-300"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Package className="w-4 h-4" />
@@ -308,7 +308,7 @@ export function Navbar() {
                     </Link>
                     <Link 
                       href="/cicd" 
-                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-white/10 rounded-lg transition-all duration-300"
+                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-accent rounded-lg transition-all duration-300"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <GitBranch className="w-4 h-4" />
@@ -316,7 +316,7 @@ export function Navbar() {
                     </Link>
                     <Link 
                       href="/observability" 
-                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-white/10 rounded-lg transition-all duration-300"
+                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-accent rounded-lg transition-all duration-300"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Activity className="w-4 h-4" />
@@ -324,7 +324,7 @@ export function Navbar() {
                     </Link>
                     <Link 
                       href="/integrations" 
-                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-white/10 rounded-lg transition-all duration-300"
+                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-accent rounded-lg transition-all duration-300"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Plug className="w-4 h-4" />
@@ -332,7 +332,7 @@ export function Navbar() {
                     </Link>
                     <Link 
                       href="/ai-quality" 
-                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-white/10 rounded-lg transition-all duration-300"
+                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-accent rounded-lg transition-all duration-300"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Sparkles className="w-4 h-4" />
@@ -340,7 +340,7 @@ export function Navbar() {
                     </Link>
                     <Link 
                       href="/commercial" 
-                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-white/10 rounded-lg transition-all duration-300"
+                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-accent rounded-lg transition-all duration-300"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Building2 className="w-4 h-4" />
@@ -348,7 +348,7 @@ export function Navbar() {
                     </Link>
                     <Link 
                       href="/data-manager" 
-                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-white/10 rounded-lg transition-all duration-300"
+                      className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-accent rounded-lg transition-all duration-300"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Database className="w-4 h-4" />
@@ -362,12 +362,12 @@ export function Navbar() {
               {isLoggedIn ? (
                 <>
                   <div className="text-sm mb-2 px-3">
-                    <p className="font-medium text-white">{session?.user?.name}</p>
-                    <p className="text-xs text-slate-400">Administrator</p>
+                    <p className="font-medium text-foreground">{session?.user?.name}</p>
+                    <p className="text-xs text-muted-foreground">Administrator</p>
                   </div>
                   <Link 
                     href="/settings" 
-                    className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-white/10 rounded-lg transition-all duration-300"
+                    className="flex items-center gap-2 text-slate-300 hover:text-white py-2 px-3 hover:bg-accent rounded-lg transition-all duration-300"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     <Settings className="w-4 h-4" />
@@ -389,7 +389,7 @@ export function Navbar() {
               ) : (
                 <>
                   <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
-                    <Button variant="ghost" size="sm" className="w-full text-slate-300 hover:text-white hover:bg-white/10">
+                    <Button variant="ghost" size="sm" className="w-full text-muted-foreground hover:text-foreground hover:bg-accent">
                       Login
                     </Button>
                   </Link>

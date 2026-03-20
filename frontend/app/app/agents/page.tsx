@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AgentCard } from '@/components/agent-card';
 import { Agent } from '@/lib/types';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CapabilityGrid } from '@/components/capability-card';
 import { Users, Activity, CheckCircle, XCircle, RefreshCw, Sparkles, Brain, Database, Network, BarChart3, Cpu } from 'lucide-react';
 
 export default function AgentsPage() {
@@ -84,10 +86,10 @@ export default function AgentsPage() {
 
   if (status === 'loading' || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-slate-300">Loading agents...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading agents...</p>
         </div>
       </div>
     );
@@ -110,7 +112,7 @@ export default function AgentsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground overflow-hidden">
       {/* Animated Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-purple-600/10 to-pink-600/10 animate-gradient-xy" />
@@ -270,28 +272,55 @@ export default function AgentsPage() {
           </Card>
         )}
 
-        {/* Agents Grid */}
+        {/* Agents Tabs */}
         <div className={`transition-all duration-700 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-            Available Agents
-          </h2>
-          {agents && agents.length > 0 ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {agents.map((agent) => (
-                <AgentCard key={agent?.id || Math.random()} agent={agent} />
-              ))}
-            </div>
-          ) : (
-            <Card className="p-12 text-center bg-white/5 backdrop-blur-xl border-white/10">
-              <Users className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-white mb-2">
-                No Agents Available
-              </h3>
-              <p className="text-slate-400">
-                Please check your backend connection or contact support.
-              </p>
-            </Card>
-          )}
+          <Tabs defaultValue="fleet" className="space-y-6">
+            <TabsList className="bg-card/50 backdrop-blur-xl border border-border/50 p-1">
+              <TabsTrigger value="fleet" className="gap-2 data-[state=active]:bg-primary/20 data-[state=active]:text-foreground text-muted-foreground">
+                <Users className="w-4 h-4" />
+                Agent Fleet
+              </TabsTrigger>
+              <TabsTrigger value="capabilities" className="gap-2 data-[state=active]:bg-primary/20 data-[state=active]:text-foreground text-muted-foreground">
+                <Brain className="w-4 h-4" />
+                Capabilities
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="fleet">
+              <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                Available Agents
+              </h2>
+              {agents && agents.length > 0 ? (
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {agents.map((agent) => (
+                    <AgentCard key={agent?.id || Math.random()} agent={agent} />
+                  ))}
+                </div>
+              ) : (
+                <Card className="p-12 text-center border-border/40 bg-card/50">
+                  <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">
+                    No Agents Available
+                  </h3>
+                  <p className="text-muted-foreground">
+                    Please check your backend connection or contact support.
+                  </p>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="capabilities">
+              <div className="mb-4">
+                <h2 className="text-2xl font-bold mb-1 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                  Agent Capabilities
+                </h2>
+                <p className="text-muted-foreground text-sm">
+                  Live capabilities reported by the backend for each available agent.
+                </p>
+              </div>
+              <CapabilityGrid />
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Agent Categories Details */}

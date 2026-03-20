@@ -12,7 +12,7 @@ import { PerformanceMetrics } from '@/components/dashboard/performance-metrics';
 import { AgentOrchestration } from '@/components/dashboard/agent-orchestration';
 import { LearningAnalytics } from '@/components/dashboard/learning-analytics';
 import { RealtimeMonitor } from '@/components/dashboard/realtime-monitor';
-import { InteractiveCommandCenter } from '@/components/interactive-command-center';
+import { AgentRunPanel } from '@/components/agent-run-panel';
 import { 
   Activity,
   Brain,
@@ -78,10 +78,10 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-slate-300 font-medium">Loading Enterprise Dashboard...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground font-medium">Loading Enterprise Dashboard...</p>
         </div>
       </div>
     );
@@ -108,7 +108,7 @@ export default function DashboardPage() {
         : 'bg-slate-500/20 border-slate-500/30 text-slate-300';
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground overflow-hidden">
       {/* Animated Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-purple-600/10 to-pink-600/10 animate-gradient-xy" />
@@ -130,7 +130,7 @@ export default function DashboardPage() {
               <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
                 Enterprise Command Center
               </h1>
-              <p className="text-slate-300 text-lg">
+              <p className="text-muted-foreground text-lg">
                 Welcome back, <span className="font-semibold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">{displayName}</span> • Real-time Multi-Agent Platform Monitoring
               </p>
             </div>
@@ -209,7 +209,7 @@ export default function DashboardPage() {
           </TabsList>
 
           <TabsContent value="command" className="space-y-6">
-            <InteractiveCommandCenter />
+            <AgentRunPanel />
           </TabsContent>
 
           <TabsContent value="overview" className="space-y-6">

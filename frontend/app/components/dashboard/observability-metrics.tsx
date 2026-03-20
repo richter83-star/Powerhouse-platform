@@ -16,9 +16,12 @@ import {
   RefreshCw,
   Zap,
   Shield,
-  Archive
+  Archive,
+  RotateCcw
 } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 interface MetricsData {
   counters: Record<string, number>
@@ -79,14 +82,27 @@ export function ObservabilityMetrics() {
   const [health, setHealth] = useState<HealthStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
+  const [resetting, setResetting] = useState<string | null>(null)
+
+  const resetCircuitBreaker = async (name: string) => {
+    setResetting(name)
+    try {
+      await fetch(`${API_BASE}/circuit-breakers/${encodeURIComponent(name)}/reset`, { method: 'POST' })
+      await fetchObservabilityData()
+    } catch (err) {
+      console.error('Failed to reset circuit breaker:', err)
+    } finally {
+      setResetting(null)
+    }
+  }
 
   const fetchObservabilityData = async () => {
     try {
       const [metricsRes, circuitBreakersRes, checkpointsRes, healthRes] = await Promise.all([
-        fetch('http://localhost:8000/api/observability/metrics'),
-        fetch('http://localhost:8000/api/observability/circuit-breakers'),
-        fetch('http://localhost:8000/api/observability/checkpoints'),
-        fetch('http://localhost:8000/api/observability/health')
+        fetch(`${API_BASE}/api/observability/metrics`),
+        fetch(`${API_BASE}/circuit-breakers`),
+        fetch(`${API_BASE}/api/observability/checkpoints`),
+        fetch(`${API_BASE}/api/performance/health`)
       ])
 
       if (metricsRes.ok) {
@@ -352,7 +368,22 @@ export function ObservabilityMetrics() {
                 <div key={name} className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="font-semibold">{breaker.name}</div>
-                    {getCircuitBreakerBadge(breaker.state)}
+                    <div className="flex items-center gap-2">
+                      {getCircuitBreakerBadge(breaker.state)}
+                      {breaker.state !== 'closed' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs gap-1"
+                          onClick={() => resetCircuitBreaker(breaker.name)}
+                          disabled={resetting === breaker.name}
+                          aria-label={`Reset ${breaker.name} circuit breaker`}
+                        >
+                          <RotateCcw className={`w-3 h-3 ${resetting === breaker.name ? 'animate-spin' : ''}`} />
+                          Reset
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 text-sm">

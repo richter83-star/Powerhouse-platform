@@ -86,7 +86,12 @@ function ToastContainer({
   onRemove: (id: string) => void;
 }) {
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-md w-full pointer-events-none">
+    <div
+      className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-md w-full pointer-events-none"
+      aria-live="polite"
+      aria-atomic="false"
+      aria-label="Notifications"
+    >
       {toasts.map(toast => (
         <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
       ))}
@@ -119,6 +124,8 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
         styles[toast.type]
       )}
       role="alert"
+      aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+      aria-atomic="true"
     >
       <Icon className="h-5 w-5 flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
