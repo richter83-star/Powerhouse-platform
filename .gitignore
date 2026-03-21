@@ -184,6 +184,10 @@ prisma/migrations/.migrate/
 backend/venv/
 backend/.venv/
 
+# Generated install artifact (extracted by install_powerhouse.py)
+powerhouse/
+powerhouse.zip
+
 # Frontend Build Outputs
 frontend/app/.next/
 frontend/app/out/
