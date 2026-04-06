@@ -4,7 +4,7 @@
 # Powerhouse Backend Startup Script
 # Ensures the backend API server is running
 
-BACKEND_DIR="/home/ubuntu/powerhouse_b2b_platform/backend"
+BACKEND_DIR="$(cd "$(dirname "$0")" && pwd)"
 PID_FILE="$BACKEND_DIR/backend.pid"
 LOG_FILE="$BACKEND_DIR/backend.log"
 
@@ -24,12 +24,12 @@ is_running() {
 # Function to start backend
 start_backend() {
     echo "Starting Powerhouse backend..."
-    nohup python simple_api.py > "$LOG_FILE" 2>&1 &
+    nohup python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 > "$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
     sleep 2
-    
+
     if is_running; then
-        echo "✅ Backend started successfully on port 8001"
+        echo "✅ Backend started successfully on port 8000"
         echo "PID: $(cat $PID_FILE)"
     else
         echo "❌ Failed to start backend"
@@ -71,7 +71,7 @@ case "${1:-start}" in
     status)
         if is_running; then
             echo "Backend is running (PID: $(cat $PID_FILE))"
-            curl -s http://localhost:8001/health | python3 -m json.tool
+            curl -s http://localhost:8000/health | python3 -m json.tool
         else
             echo "Backend is not running"
             exit 1
