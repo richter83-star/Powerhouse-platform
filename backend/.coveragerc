@@ -1,4 +1,1 @@
 [run]
-omit =
-    agents_backup/*
-    */agents_backup/*
