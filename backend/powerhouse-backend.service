@@ -9,7 +9,7 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/powerhouse_b2b_platform/backend
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
-ExecStart=/usr/bin/python3 /home/ubuntu/powerhouse_b2b_platform/backend/simple_api.py
+ExecStart=/usr/bin/python3 -m uvicorn api.main:app --host 0.0.0.0 --port 8001
 Restart=always
 RestartSec=10
 StandardOutput=append:/tmp/simple_backend.log
