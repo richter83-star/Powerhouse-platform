@@ -13,21 +13,23 @@ import { AgentOrchestration } from '@/components/dashboard/agent-orchestration';
 import { LearningAnalytics } from '@/components/dashboard/learning-analytics';
 import { RealtimeMonitor } from '@/components/dashboard/realtime-monitor';
 import { InteractiveCommandCenter } from '@/components/interactive-command-center';
-import { 
+import { SystemsHub } from '@/components/dashboard/systems-hub';
+import {
   Activity,
   Brain,
   Cpu,
   TrendingUp,
   Zap,
   Terminal,
-  Sparkles
+  Sparkles,
+  LayoutDashboard
 } from 'lucide-react';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession() || {};
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('command');
+  const [activeTab, setActiveTab] = useState('hub');
   const [mounted, setMounted] = useState(false);
   const [agentCount, setAgentCount] = useState<number | null>(null);
   const [systemStatus, setSystemStatus] = useState<'healthy' | 'degraded' | 'unhealthy' | 'unknown'>('unknown');
@@ -145,11 +147,21 @@ export default function DashboardPage() {
 
         {/* Main Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className={`space-y-6 transition-all duration-700 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <TabsList className="bg-white/5 backdrop-blur-xl border border-white/10 p-1" role="tablist">
-            <TabsTrigger 
-              value="command" 
-              className="gap-2 data-[state=active]:bg-white/10 data-[state=active]:text-white text-slate-400" 
-              data-interactive="true" 
+          <TabsList className="bg-white/5 backdrop-blur-xl border border-white/10 p-1 flex-wrap" role="tablist">
+            <TabsTrigger
+              value="hub"
+              className="gap-2 data-[state=active]:bg-white/10 data-[state=active]:text-white text-slate-400"
+              data-interactive="true"
+              aria-label="Systems Hub Tab"
+              onClick={() => setActiveTab('hub')}
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Systems Hub
+            </TabsTrigger>
+            <TabsTrigger
+              value="command"
+              className="gap-2 data-[state=active]:bg-white/10 data-[state=active]:text-white text-slate-400"
+              data-interactive="true"
               aria-label="Command Center Tab"
               onClick={() => setActiveTab('command')}
             >
@@ -207,6 +219,10 @@ export default function DashboardPage() {
               Real-time Monitor
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="hub" className="space-y-6">
+            <SystemsHub />
+          </TabsContent>
 
           <TabsContent value="command" className="space-y-6">
             <InteractiveCommandCenter />

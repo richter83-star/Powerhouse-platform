@@ -10,6 +10,7 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { AccessibilityWidget } from '@/components/accessibility-widget';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
+import { Sidebar } from '@/components/sidebar';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -36,9 +37,12 @@ export default function RootLayout({
                       Skip to main content
                     </a>
                     <Navbar />
-                    <main id="main-content" className="flex-1">
-                      {children}
-                    </main>
+                    <div className="flex flex-1">
+                      <Sidebar />
+                      <main id="main-content" className="flex-1 min-w-0">
+                        {children}
+                      </main>
+                    </div>
                     <Footer />
                     <AccessibilityWidget />
                   </div>
